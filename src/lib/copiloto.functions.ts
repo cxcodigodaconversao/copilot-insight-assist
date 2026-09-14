@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+type Saida = { [k: string]: Json };
+
 const SugestaoInput = z.object({
   callId: z.string().uuid(),
   texto: z.string().min(1),
@@ -85,7 +88,7 @@ ${data.texto}`;
     const model = ctx.config["modelo_claude"] || "claude-sonnet-4-6";
     const maxTokens = Number(ctx.config["max_tokens"] ?? 600);
 
-    let resposta: Record<string, unknown>;
+    let resposta: Saida;
     try {
       const texto = await chamarClaude({
         system,
@@ -190,7 +193,7 @@ ${data.fala}`,
         },
       ],
     });
-    let resposta: Record<string, unknown>;
+    let resposta: Saida;
     try {
       resposta = extrairJson(texto);
     } catch {
@@ -253,7 +256,7 @@ ${transcricao || "(sem falas registradas)"}`,
       ],
     });
 
-    let resumo: Record<string, unknown>;
+    let resumo: Saida;
     try {
       resumo = extrairJson(texto);
     } catch {
