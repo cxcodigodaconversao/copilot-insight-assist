@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-1">
             {itens
-              .filter((i) => !i.somenteLider || papel === "lider")
+              .filter((i) => !i.somenteLider || podeVerTudo)
               .map((i) => (
                 <Link
                   key={i.to}
