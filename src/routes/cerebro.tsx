@@ -645,7 +645,7 @@ function Teste() {
   async function rodar() {
     setRodando(true);
     try {
-      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, texto } });
+      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto } });
       setSaida(JSON.stringify(r.resposta, null, 2));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "O teste falhou.");

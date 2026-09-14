@@ -31,7 +31,7 @@ function Calls() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("calls")
-        .select("*, ofertas(nome), profiles:vendedor_id(nome)")
+        .select("*, ofertas(nome)")
         .order("iniciada_em", { ascending: false });
       if (error) throw error;
       return data;
@@ -115,8 +115,7 @@ function Calls() {
                 </p>
               </div>
               <span className="text-sm text-muted-foreground">{c.ofertas?.nome ?? "—"}</span>
-              <span className="text-sm text-muted-foreground">{c.profiles?.nome ?? ""}</span>
-              <span className="ml-auto flex items-center gap-2 text-xs">
+                    <span className="ml-auto flex items-center gap-2 text-xs">
                 {temp && (
                   <span className="rounded-full bg-secondary px-3 py-1 uppercase text-primary">
                     {temp}

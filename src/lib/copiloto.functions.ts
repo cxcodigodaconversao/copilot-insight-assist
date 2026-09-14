@@ -85,7 +85,7 @@ ${data.texto}`;
     const model = ctx.config["modelo_claude"] || "claude-sonnet-4-6";
     const maxTokens = Number(ctx.config["max_tokens"] ?? 600);
 
-    let resposta: unknown;
+    let resposta: Record<string, unknown>;
     try {
       const texto = await chamarClaude({
         system,
@@ -190,7 +190,7 @@ ${data.fala}`,
         },
       ],
     });
-    let resposta: unknown;
+    let resposta: Record<string, unknown>;
     try {
       resposta = extrairJson(texto);
     } catch {
@@ -253,7 +253,7 @@ ${transcricao || "(sem falas registradas)"}`,
       ],
     });
 
-    let resumo: unknown;
+    let resumo: Record<string, unknown>;
     try {
       resumo = extrairJson(texto);
     } catch {
