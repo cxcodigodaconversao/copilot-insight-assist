@@ -16,48 +16,103 @@ export type Database = {
     Tables: {
       calls: {
         Row: {
+          cliente: string
+          closer_id: string | null
+          data_reuniao_agendada: string | null
+          email_lead: string
           encerrada_em: string | null
+          forma_pagamento: string | null
+          funil: string
           id: string
           iniciada_em: string
+          modalidade: string
           nome_lead: string
           notas_crm: string
           objetivo: string
+          observacoes: string
           oferta_id: string | null
           origem_lead: string
+          resultado: string
           resumo_falas_antigas: string | null
           resumo_final: Json | null
+          sdr_id: string | null
+          status_reuniao: string
+          telefone_lead: string
+          time: string
           tipo: string
+          valor_coletado: number
+          valor_pendente: number
+          valor_vendido: number
           vendedor_id: string
         }
         Insert: {
+          cliente?: string
+          closer_id?: string | null
+          data_reuniao_agendada?: string | null
+          email_lead?: string
           encerrada_em?: string | null
+          forma_pagamento?: string | null
+          funil?: string
           id?: string
           iniciada_em?: string
+          modalidade?: string
           nome_lead?: string
           notas_crm?: string
           objetivo?: string
+          observacoes?: string
           oferta_id?: string | null
           origem_lead?: string
+          resultado?: string
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
+          sdr_id?: string | null
+          status_reuniao?: string
+          telefone_lead?: string
+          time?: string
           tipo?: string
+          valor_coletado?: number
+          valor_pendente?: number
+          valor_vendido?: number
           vendedor_id: string
         }
         Update: {
+          cliente?: string
+          closer_id?: string | null
+          data_reuniao_agendada?: string | null
+          email_lead?: string
           encerrada_em?: string | null
+          forma_pagamento?: string | null
+          funil?: string
           id?: string
           iniciada_em?: string
+          modalidade?: string
           nome_lead?: string
           notas_crm?: string
           objetivo?: string
+          observacoes?: string
           oferta_id?: string | null
           origem_lead?: string
+          resultado?: string
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
+          sdr_id?: string | null
+          status_reuniao?: string
+          telefone_lead?: string
+          time?: string
           tipo?: string
+          valor_coletado?: number
+          valor_pendente?: number
+          valor_vendido?: number
           vendedor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calls_oferta_id_fkey"
             columns: ["oferta_id"]
@@ -65,7 +120,38 @@ export type Database = {
             referencedRelation: "ofertas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "calls_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      clientes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
       }
       config_api: {
         Row: {
@@ -116,6 +202,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      funis: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
+      }
+      modalidades: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
       }
       objecoes: {
         Row: {
@@ -194,6 +328,30 @@ export type Database = {
           nome?: string
           preco_condicoes?: string
           publico_ideal?: string
+        }
+        Relationships: []
+      }
+      origens: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
         }
         Relationships: []
       }
@@ -298,6 +456,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      times: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
