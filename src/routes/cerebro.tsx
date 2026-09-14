@@ -102,7 +102,10 @@ function Ofertas() {
 
   async function criar() {
     const { error } = await supabase.from("ofertas").insert({ nome: "Nova oferta" });
-    if (error) return toast.error("Não foi possível criar a oferta.");
+    if (error) {
+      toast.error("Não foi possível criar a oferta.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["ofertas"] });
   }
 
@@ -121,11 +124,11 @@ function Ofertas() {
 type Oferta = {
   id: string;
   nome: string;
-  descricao: string | null;
-  preco_condicoes: string | null;
-  garantia: string | null;
-  diferenciais: string | null;
-  publico_ideal: string | null;
+  descricao: string;
+  preco_condicoes: string;
+  garantia: string;
+  diferenciais: string;
+  publico_ideal: string;
   ativo: boolean;
 };
 
@@ -140,14 +143,20 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
     const { id, ...resto } = f;
     const { error } = await supabase.from("ofertas").update(resto).eq("id", id);
     setSalvando(false);
-    if (error) return toast.error("Não foi possível salvar.");
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
     toast.success("Oferta salva.");
     qc.invalidateQueries({ queryKey: ["ofertas"] });
   }
 
   async function excluir() {
     const { error } = await supabase.from("ofertas").delete().eq("id", f.id);
-    if (error) return toast.error("Não foi possível excluir.");
+    if (error) {
+      toast.error("Não foi possível excluir.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["ofertas"] });
   }
 
@@ -161,7 +170,7 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
         <div className="space-y-2">
           <Label>Público ideal</Label>
           <Input
-            value={f.publico_ideal ?? ""}
+            value={f.publico_ideal}
             onChange={(e) => setF({ ...f, publico_ideal: e.target.value })}
           />
         </div>
@@ -170,7 +179,7 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
         <Label>Descrição</Label>
         <Textarea
           rows={3}
-          value={f.descricao ?? ""}
+          value={f.descricao}
           onChange={(e) => setF({ ...f, descricao: e.target.value })}
         />
       </div>
@@ -179,7 +188,7 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
           <Label>Preço e condições</Label>
           <Textarea
             rows={2}
-            value={f.preco_condicoes ?? ""}
+            value={f.preco_condicoes}
             onChange={(e) => setF({ ...f, preco_condicoes: e.target.value })}
           />
         </div>
@@ -187,7 +196,7 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
           <Label>Garantia</Label>
           <Textarea
             rows={2}
-            value={f.garantia ?? ""}
+            value={f.garantia}
             onChange={(e) => setF({ ...f, garantia: e.target.value })}
           />
         </div>
@@ -196,7 +205,7 @@ function OfertaCard({ oferta }: { oferta: Oferta }) {
         <Label>Diferenciais</Label>
         <Textarea
           rows={3}
-          value={f.diferenciais ?? ""}
+          value={f.diferenciais}
           onChange={(e) => setF({ ...f, diferenciais: e.target.value })}
         />
       </div>
@@ -224,9 +233,9 @@ type Objecao = {
   id: string;
   oferta_id: string | null;
   categoria: string;
-  gatilho: string | null;
-  como_quebrar: string | null;
-  pergunta_pronta: string | null;
+  gatilho: string;
+  como_quebrar: string;
+  pergunta_pronta: string;
   ativo: boolean;
   ordem: number;
 };
@@ -252,7 +261,10 @@ function Objecoes() {
 
   async function criar(categoria: string) {
     const { error } = await supabase.from("objecoes").insert({ categoria, ordem: 100 });
-    if (error) return toast.error("Não foi possível criar.");
+    if (error) {
+      toast.error("Não foi possível criar.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["objecoes"] });
   }
 
@@ -261,7 +273,10 @@ function Objecoes() {
       .from("objecoes")
       .update({ ordem: obj.ordem + delta })
       .eq("id", obj.id);
-    if (error) return toast.error("Não foi possível reordenar.");
+    if (error) {
+      toast.error("Não foi possível reordenar.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["objecoes"] });
   }
 
@@ -313,7 +328,10 @@ function ObjecaoCard({
   async function salvar() {
     const { id, ...resto } = f;
     const { error } = await supabase.from("objecoes").update(resto).eq("id", id);
-    if (error) return toast.error("Não foi possível salvar.");
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
     toast.success("Quebra salva.");
     qc.invalidateQueries({ queryKey: ["objecoes"] });
   }
@@ -322,13 +340,19 @@ function ObjecaoCard({
     const { id, ...resto } = f;
     void id;
     const { error } = await supabase.from("objecoes").insert({ ...resto, ordem: resto.ordem + 1 });
-    if (error) return toast.error("Não foi possível duplicar.");
+    if (error) {
+      toast.error("Não foi possível duplicar.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["objecoes"] });
   }
 
   async function excluir() {
     const { error } = await supabase.from("objecoes").delete().eq("id", f.id);
-    if (error) return toast.error("Não foi possível excluir.");
+    if (error) {
+      toast.error("Não foi possível excluir.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["objecoes"] });
   }
 
@@ -338,7 +362,7 @@ function ObjecaoCard({
         <div className="space-y-2">
           <Label>Vale para</Label>
           <select
-            value={f.oferta_id ?? ""}
+            value={f.oferta_id}
             onChange={(e) => setF({ ...f, oferta_id: e.target.value || null })}
             className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
           >
@@ -369,7 +393,7 @@ function ObjecaoCard({
         <Label>Gatilho (o que o cliente diz)</Label>
         <Textarea
           rows={2}
-          value={f.gatilho ?? ""}
+          value={f.gatilho}
           onChange={(e) => setF({ ...f, gatilho: e.target.value })}
         />
       </div>
@@ -377,7 +401,7 @@ function ObjecaoCard({
         <Label>Como quebrar</Label>
         <Textarea
           rows={3}
-          value={f.como_quebrar ?? ""}
+          value={f.como_quebrar}
           onChange={(e) => setF({ ...f, como_quebrar: e.target.value })}
         />
       </div>
@@ -385,7 +409,7 @@ function ObjecaoCard({
         <Label>Pergunta pronta</Label>
         <Textarea
           rows={2}
-          value={f.pergunta_pronta ?? ""}
+          value={f.pergunta_pronta}
           onChange={(e) => setF({ ...f, pergunta_pronta: e.target.value })}
         />
       </div>
@@ -435,9 +459,9 @@ function Disc() {
 type Perfil = {
   id: string;
   tipo: string;
-  como_identificar: string | null;
-  como_conduzir: string | null;
-  evitar: string | null;
+  como_identificar: string;
+  como_conduzir: string;
+  evitar: string;
 };
 
 function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) {
@@ -447,7 +471,10 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
   async function salvar() {
     const { id, ...resto } = f;
     const { error } = await supabase.from("perfis_disc").update(resto).eq("id", id);
-    if (error) return toast.error("Não foi possível salvar.");
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
     toast.success(`Perfil ${f.tipo} salvo.`);
     onSalvo();
   }
@@ -459,7 +486,7 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
         <Label>Como identificar</Label>
         <Textarea
           rows={3}
-          value={f.como_identificar ?? ""}
+          value={f.como_identificar}
           onChange={(e) => setF({ ...f, como_identificar: e.target.value })}
         />
       </div>
@@ -467,7 +494,7 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
         <Label>Como conduzir</Label>
         <Textarea
           rows={3}
-          value={f.como_conduzir ?? ""}
+          value={f.como_conduzir}
           onChange={(e) => setF({ ...f, como_conduzir: e.target.value })}
         />
       </div>
@@ -475,7 +502,7 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
         <Label>Evitar</Label>
         <Textarea
           rows={2}
-          value={f.evitar ?? ""}
+          value={f.evitar}
           onChange={(e) => setF({ ...f, evitar: e.target.value })}
         />
       </div>
@@ -493,7 +520,10 @@ function Regras() {
 
   async function salvar(chave: string, valor: string) {
     const { error } = await supabase.from("regras_copiloto").update({ valor }).eq("chave", chave);
-    if (error) return toast.error("Não foi possível salvar.");
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
     toast.success("Regra salva.");
     qc.invalidateQueries({ queryKey: ["regras_copiloto"] });
   }
@@ -504,8 +534,8 @@ function Regras() {
         <RegraCard
           key={r.chave}
           chave={r.chave}
-          valorInicial={r.valor ?? ""}
-          ajuda={r.descricao_ajuda ?? ""}
+          valorInicial={r.valor}
+          ajuda={r.descricao_ajuda}
           onSalvar={salvar}
         />
       ))}
@@ -547,7 +577,10 @@ function Config() {
 
   async function salvar(chave: string, valor: string) {
     const { error } = await supabase.from("config_api").update({ valor }).eq("chave", chave);
-    if (error) return toast.error("Não foi possível salvar.");
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
     toast.success("Configuração salva.");
     qc.invalidateQueries({ queryKey: ["config_api"] });
   }
@@ -556,7 +589,7 @@ function Config() {
     <div className="space-y-4">
       <div className="card-cx space-y-4 p-5">
         {(data ?? []).map((c) => (
-          <ConfigLinha key={c.chave} chave={c.chave} valorInicial={c.valor ?? ""} onSalvar={salvar} />
+          <ConfigLinha key={c.chave} chave={c.chave} valorInicial={c.valor} onSalvar={salvar} />
         ))}
       </div>
       <div className="card-cx p-5 text-sm">
