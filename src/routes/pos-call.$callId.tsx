@@ -237,6 +237,8 @@ function PosCall() {
         </Button>
       </div>
 
+      {call && <BlocoResultado call={call as unknown as CallResultado} />}
+
       {isLoading && <p className="text-muted-foreground">Carregando…</p>}
 
       {!isLoading && !resumo && (
