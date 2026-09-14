@@ -74,22 +74,34 @@ function Cerebro() {
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
         <TabsContent value="ofertas">
-          <Ofertas />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Ofertas />
+          </fieldset>
         </TabsContent>
         <TabsContent value="objecoes">
-          <Objecoes />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Objecoes />
+          </fieldset>
         </TabsContent>
         <TabsContent value="disc">
-          <Disc />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Disc />
+          </fieldset>
         </TabsContent>
         <TabsContent value="regras">
-          <Regras />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Regras />
+          </fieldset>
         </TabsContent>
         <TabsContent value="cadastros">
-          <Cadastros />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Cadastros />
+          </fieldset>
         </TabsContent>
         <TabsContent value="config">
-          <Config />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Config />
+          </fieldset>
         </TabsContent>
         <TabsContent value="teste">
           <Teste />
