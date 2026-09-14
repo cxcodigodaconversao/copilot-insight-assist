@@ -85,7 +85,85 @@ function NovaCall() {
 
   return (
     <AppShell>
-      <h1 className="mb-6 text-2xl">Nova call</h1>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-2xl">Nova call</h1>
+        <Dialog open={ajudaAberto} onOpenChange={setAjudaAberto}>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" size="sm">
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Como usar
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Como usar o Copiloto CX no Meet</DialogTitle>
+              <DialogDescription>
+                Passo a passo completo para acompanhar calls ao vivo.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5 text-sm leading-relaxed">
+              <section>
+                <h3 className="mb-1 text-base font-semibold text-primary">1. Antes da call</h3>
+                <p>
+                  Acesse <strong>Cérebro CX</strong> e cadastre ou revise a oferta, as quebras de objeção, os perfis DISC e as regras do copiloto. Essas informações são a base que o assistente usa para sugerir respostas em tempo real.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="mb-1 text-base font-semibold text-primary">2. Iniciar a call</h3>
+                <p>
+                  Preencha este formulário: escolha a <strong>oferta</strong>, digite o nome do lead, a origem, as notas do CRM, o objetivo da conversa e o tipo (closer ou SDR). Depois clique em <strong>Iniciar</strong>.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="mb-1 text-base font-semibold text-primary">3. Compartilhar o áudio do Meet</h3>
+                <p className="mb-2">
+                  O Copiloto CX separa o áudio de duas fontes para saber quem fala:
+                </p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Microfone do vendedor:</strong> permita o acesso quando o navegador pedir. Essa é a sua voz.
+                  </li>
+                  <li>
+                    <strong>Áudio da aba do Meet:</strong> o navegador pedirá para escolher uma aba. Selecione a aba onde está o Google Meet e <strong>marque a opção "Compartilhar áudio da aba"</strong>. O vídeo é descartado; só o áudio do cliente importa.
+                  </li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="mb-1 text-base font-semibold text-primary">4. Durante a call</h3>
+                <p className="mb-2">A tela da call ao vivo é dividida em duas partes:</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>
+                    <strong>Esquerda (40%):</strong> transcrição rolando, com sua fale e a do cliente em cores diferentes.
+                  </li>
+                  <li>
+                    <strong>Direita (60%):</strong> sugestão mais recente — leitura do momento, próxima pergunta em destaque, o porquê da sugestão e alertas em vermelho.
+                  </li>
+                </ul>
+                <p className="mt-2">
+                  No rodapé você vê chips com o perfil DISC detectado, a confiança, a etapa SPIN, a temperatura e o sinal da conversa. Se o app identificar o falante errado, use o botão para trocar entre cliente e vendedor.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="mb-1 text-base font-semibold text-primary">5. Após a call</h3>
+                <p>
+                  Ao clicar em <strong>Encerrar call</strong>, o sistema gera automaticamente um resumo com: síntese da conversa, perfil DISC final, objeções que surgiram, pontos fortes e a melhorar, próximos passos e temperatura final. Você pode copiar o resumo ou exportar em JSON.
+                </p>
+              </section>
+
+              <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-warning-foreground">
+                <h3 className="mb-1 text-base font-semibold">Importante: use Chrome ou Edge</h3>
+                <p>
+                  A captura do áudio da aba do Meet só funciona no Chrome e no Edge. Firefox e Safari não oferecem essa opção, então use um desses navegadores para calls ao vivo.
+                </p>
+              </section>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
       <form onSubmit={iniciar} className="card-cx max-w-2xl space-y-5 p-6">
         <div className="space-y-2">
           <Label htmlFor="oferta">Oferta</Label>
