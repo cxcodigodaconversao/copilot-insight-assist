@@ -25,7 +25,6 @@ export type Database = {
           funil: string
           id: string
           iniciada_em: string
-          modalidade: string
           nome_lead: string
           notas_crm: string
           objetivo: string
@@ -55,7 +54,6 @@ export type Database = {
           funil?: string
           id?: string
           iniciada_em?: string
-          modalidade?: string
           nome_lead?: string
           notas_crm?: string
           objetivo?: string
@@ -85,7 +83,6 @@ export type Database = {
           funil?: string
           id?: string
           iniciada_em?: string
-          modalidade?: string
           nome_lead?: string
           notas_crm?: string
           objetivo?: string
@@ -171,6 +168,36 @@ export type Database = {
         }
         Relationships: []
       }
+      convites: {
+        Row: {
+          convidado_por: string | null
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+        }
+        Insert: {
+          convidado_por?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          nome?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+        }
+        Update: {
+          convidado_por?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+        }
+        Relationships: []
+      }
       falas: {
         Row: {
           call_id: string
@@ -204,30 +231,6 @@ export type Database = {
         ]
       }
       funis: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          id: string
-          nome: string
-          ordem: number
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome: string
-          ordem?: number
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome?: string
-          ordem?: number
-        }
-        Relationships: []
-      }
-      modalidades: {
         Row: {
           ativo: boolean
           created_at: string
