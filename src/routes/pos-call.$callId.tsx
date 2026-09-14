@@ -46,6 +46,150 @@ function Bloco({ titulo, itens }: { titulo: string; itens?: string[] | undefined
   );
 }
 
+type CallResultado = {
+  id: string;
+  status_reuniao: string;
+  resultado: string;
+  valor_vendido: number;
+  valor_coletado: number;
+  valor_pendente: number;
+  forma_pagamento: string | null;
+  observacoes: string;
+};
+
+const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
+
+function BlocoResultado({ call }: { call: CallResultado }) {
+  const qc = useQueryClient();
+  const [salvando, setSalvando] = useState(false);
+  const [r, setR] = useState({
+    status_reuniao: call.status_reuniao,
+    resultado: call.resultado,
+    valor_vendido: String(call.valor_vendido ?? 0),
+    valor_coletado: String(call.valor_coletado ?? 0),
+    valor_pendente: String(call.valor_pendente ?? 0),
+    forma_pagamento: call.forma_pagamento ?? "",
+    observacoes: call.observacoes ?? "",
+  });
+
+  // Pendente = vendido - coletado, ajustável à mão depois.
+  useEffect(() => {
+    const pendente = Number(r.valor_vendido || 0) - Number(r.valor_coletado || 0);
+    setR((atual) => ({ ...atual, valor_pendente: String(pendente > 0 ? pendente : 0) }));
+  }, [r.valor_vendido, r.valor_coletado]);
+
+  async function salvar() {
+    setSalvando(true);
+    const { error } = await supabase
+      .from("calls")
+      .update({
+        status_reuniao: r.status_reuniao,
+        resultado: r.resultado,
+        valor_vendido: Number(r.valor_vendido || 0),
+        valor_coletado: Number(r.valor_coletado || 0),
+        valor_pendente: Number(r.valor_pendente || 0),
+        forma_pagamento: r.forma_pagamento || null,
+        observacoes: r.observacoes,
+      })
+      .eq("id", call.id);
+    setSalvando(false);
+    if (error) {
+      toast.error("Não foi possível salvar o resultado.");
+      return;
+    }
+    toast.success("Resultado salvo.");
+    qc.invalidateQueries({ queryKey: ["call-resumo", call.id] });
+    qc.invalidateQueries({ queryKey: ["calls"] });
+  }
+
+  return (
+    <div className="card-cx mb-4 space-y-4 p-5">
+      <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Resultado</h2>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2">
+          <Label htmlFor="status">Status da reunião</Label>
+          <select
+            id="status"
+            value={r.status_reuniao}
+            onChange={(e) => setR({ ...r, status_reuniao: e.target.value })}
+            className={selectClass}
+          >
+            <option value="agendada">Agendada</option>
+            <option value="no_show">No-show</option>
+            <option value="realizada">Realizada</option>
+            <option value="remarcada">Remarcada</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="resultado">Resultado</Label>
+          <select
+            id="resultado"
+            value={r.resultado}
+            onChange={(e) => setR({ ...r, resultado: e.target.value })}
+            className={selectClass}
+          >
+            <option value="indefinido">Indefinido</option>
+            <option value="venda">Venda</option>
+            <option value="nao_venda">Não venda</option>
+            <option value="follow_up">Follow-up</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vendido">Valor vendido</Label>
+          <Input
+            id="vendido"
+            type="number"
+            step="0.01"
+            value={r.valor_vendido}
+            onChange={(e) => setR({ ...r, valor_vendido: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="coletado">Valor coletado</Label>
+          <Input
+            id="coletado"
+            type="number"
+            step="0.01"
+            value={r.valor_coletado}
+            onChange={(e) => setR({ ...r, valor_coletado: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pendente">Valor pendente</Label>
+          <Input
+            id="pendente"
+            type="number"
+            step="0.01"
+            value={r.valor_pendente}
+            onChange={(e) => setR({ ...r, valor_pendente: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pagamento">Forma de pagamento</Label>
+          <Input
+            id="pagamento"
+            value={r.forma_pagamento}
+            onChange={(e) => setR({ ...r, forma_pagamento: e.target.value })}
+            placeholder="Pix, cartão, boleto…"
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="observacoes">Observações</Label>
+        <Textarea
+          id="observacoes"
+          rows={3}
+          value={r.observacoes}
+          onChange={(e) => setR({ ...r, observacoes: e.target.value })}
+        />
+      </div>
+      <Button onClick={salvar} disabled={salvando}>
+        {salvando ? "Salvando…" : "Salvar resultado"}
+      </Button>
+    </div>
+  );
+}
+
 function PosCall() {
   const { callId } = Route.useParams();
   const { data: call, isLoading } = useQuery({
