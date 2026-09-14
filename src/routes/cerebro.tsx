@@ -41,10 +41,10 @@ const CATEGORIAS = [
 ] as const;
 
 function Cerebro() {
-  const { papel, carregando } = useAuth();
+  const { ehAdm, podeVerTudo, carregando } = useAuth();
 
   if (carregando) return <AppShell>Carregando…</AppShell>;
-  if (papel !== "lider")
+  if (!podeVerTudo)
     return (
       <AppShell>
         <div className="card-cx p-10 text-center text-muted-foreground">
@@ -58,6 +58,11 @@ function Cerebro() {
       <h1 className="mb-6 text-2xl">
         Cérebro <span className="text-primary">CX</span>
       </h1>
+      {!ehAdm && (
+        <div className="mb-6 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+          Você está no modo somente leitura. Apenas o administrador pode alterar estes conteúdos.
+        </div>
+      )}
       <Tabs defaultValue="ofertas">
         <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
@@ -69,22 +74,34 @@ function Cerebro() {
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
         <TabsContent value="ofertas">
-          <Ofertas />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Ofertas />
+          </fieldset>
         </TabsContent>
         <TabsContent value="objecoes">
-          <Objecoes />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Objecoes />
+          </fieldset>
         </TabsContent>
         <TabsContent value="disc">
-          <Disc />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Disc />
+          </fieldset>
         </TabsContent>
         <TabsContent value="regras">
-          <Regras />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Regras />
+          </fieldset>
         </TabsContent>
         <TabsContent value="cadastros">
-          <Cadastros />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Cadastros />
+          </fieldset>
         </TabsContent>
         <TabsContent value="config">
-          <Config />
+          <fieldset disabled={!ehAdm} className="min-w-0">
+            <Config />
+          </fieldset>
         </TabsContent>
         <TabsContent value="teste">
           <Teste />

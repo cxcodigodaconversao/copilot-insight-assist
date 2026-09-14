@@ -104,7 +104,7 @@ const COLUNAS_CSV = [
 ] as const;
 
 function Calls() {
-  const { papel } = useAuth();
+  const { podeVerTudo } = useAuth();
   const [busca, setBusca] = useState("");
   const [f, setF] = useState({
     time: "",
@@ -232,7 +232,7 @@ function Calls() {
   return (
     <AppShell>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-2xl">{papel === "lider" ? "Todas as calls" : "Minhas calls"}</h1>
+        <h1 className="mr-auto text-2xl">{podeVerTudo ? "Todas as calls" : "Minhas calls"}</h1>
         <Button variant="outline" onClick={exportarCsv} disabled={!filtradas.length}>
           <Download className="size-4" /> Exportar CSV
         </Button>

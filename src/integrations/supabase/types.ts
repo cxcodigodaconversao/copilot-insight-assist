@@ -514,10 +514,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_adm: { Args: never; Returns: boolean }
       is_lider: { Args: never; Returns: boolean }
+      pode_ver_tudo: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "lider" | "closer" | "sdr"
+      app_role: "lider" | "closer" | "sdr" | "adm"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -645,7 +647,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["lider", "closer", "sdr"],
+      app_role: ["lider", "closer", "sdr", "adm"],
     },
   },
 } as const

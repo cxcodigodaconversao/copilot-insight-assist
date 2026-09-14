@@ -2,13 +2,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type Papel = "lider" | "closer" | "sdr";
+export type Papel = "adm" | "lider" | "closer" | "sdr";
 
 type AuthState = {
   session: Session | null;
   user: User | null;
   nome: string;
   papel: Papel | null;
+  ehAdm: boolean;
+  podeVerTudo: boolean;
   carregando: boolean;
   sair: () => Promise<void>;
 };
@@ -18,6 +20,8 @@ const AuthContext = createContext<AuthState>({
   user: null,
   nome: "",
   papel: null,
+  ehAdm: false,
+  podeVerTudo: false,
   carregando: true,
   sair: async () => {},
 });
@@ -54,7 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelado) return;
       setNome(perfil?.nome ?? "");
       const lista = (papeis ?? []).map((p) => p.role as Papel);
-      setPapel(lista.includes("lider") ? "lider" : (lista[0] ?? "closer"));
+      setPapel(
+        lista.includes("adm")
+          ? "adm"
+          : lista.includes("lider")
+            ? "lider"
+            : (lista[0] ?? "closer"),
+      );
     })();
     return () => {
       cancelado = true;
@@ -68,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         nome,
         papel,
+        ehAdm: papel === "adm",
+        podeVerTudo: papel === "adm" || papel === "lider",
         carregando,
         sair: async () => {
           await supabase.auth.signOut();
