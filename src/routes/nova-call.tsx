@@ -43,6 +43,7 @@ function NovaCall() {
     tipo: "closer",
   });
   const [salvando, setSalvando] = useState(false);
+  const [ajudaAberto, setAjudaAberto] = useState(false);
 
   const { data: ofertas } = useQuery({
     queryKey: ["ofertas-ativas"],
