@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as NovaCallRouteImport } from './routes/nova-call'
 import { Route as CallCallIdRouteImport } from './routes/call.$callId'
+import { Route as PosCallCallIdRouteImport } from './routes/pos-call.$callId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +35,25 @@ const CallCallIdRoute = CallCallIdRouteImport.update({
   path: '/call/$callId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PosCallCallIdRoute = PosCallCallIdRouteImport.update({
+  id: '/pos-call/$callId',
+  path: '/pos-call/$callId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calls': typeof CallsRoute
   '/nova-call': typeof NovaCallRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/pos-call/$callId': typeof PosCallCallIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calls': typeof CallsRoute
   '/nova-call': typeof NovaCallRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/pos-call/$callId': typeof PosCallCallIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,21 @@ export interface FileRoutesById {
   '/calls': typeof CallsRoute
   '/nova-call': typeof NovaCallRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/pos-call/$callId': typeof PosCallCallIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/calls' | '/nova-call' | '/call/$callId'
+  fullPaths:
+    '/' | '/calls' | '/nova-call' | '/call/$callId' | '/pos-call/$callId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/calls' | '/nova-call' | '/call/$callId'
-  id: '__root__' | '/' | '/calls' | '/nova-call' | '/call/$callId'
+  to: '/' | '/calls' | '/nova-call' | '/call/$callId' | '/pos-call/$callId'
+  id:
+    | '__root__'
+    | '/'
+    | '/calls'
+    | '/nova-call'
+    | '/call/$callId'
+    | '/pos-call/$callId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +83,7 @@ export interface RootRouteChildren {
   CallsRoute: typeof CallsRoute
   NovaCallRoute: typeof NovaCallRoute
   CallCallIdRoute: typeof CallCallIdRoute
+  PosCallCallIdRoute: typeof PosCallCallIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +116,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallCallIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pos-call/$callId': {
+      id: '/pos-call/$callId'
+      path: '/pos-call/$callId'
+      fullPath: '/pos-call/$callId'
+      preLoaderRoute: typeof PosCallCallIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +131,7 @@ const rootRouteChildren: RootRouteChildren = {
   CallsRoute: CallsRoute,
   NovaCallRoute: NovaCallRoute,
   CallCallIdRoute: CallCallIdRoute,
+  PosCallCallIdRoute: PosCallCallIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
