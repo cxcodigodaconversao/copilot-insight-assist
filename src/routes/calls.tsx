@@ -104,7 +104,7 @@ const COLUNAS_CSV = [
 ] as const;
 
 function Calls() {
-  const { papel } = useAuth();
+  const { podeVerTudo } = useAuth();
   const [busca, setBusca] = useState("");
   const [f, setF] = useState({
     time: "",

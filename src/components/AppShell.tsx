@@ -11,7 +11,7 @@ const itens = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { session, carregando, papel, nome, sair } = useAuth();
+  const { session, carregando, papel, podeVerTudo, nome, sair } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
