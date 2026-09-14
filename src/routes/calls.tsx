@@ -89,7 +89,6 @@ const COLUNAS_CSV = [
   "cliente",
   "origem_lead",
   "produto",
-  "modalidade",
   "funil",
   "nome_lead",
   "telefone_lead",
@@ -114,7 +113,6 @@ function Calls() {
     cliente: "",
     origem: "",
     produto: "",
-    modalidade: "",
     funil: "",
     periodo: "",
     de: "",
@@ -148,7 +146,6 @@ function Calls() {
   const origens = useCadastro("origens").data;
   const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
-  const modalidades = useCadastro("modalidades").data;
 
   const filtradas = useMemo(() => {
     const faixa = intervalo(f.periodo, f.de, f.ate);
@@ -160,7 +157,6 @@ function Calls() {
       if (f.cliente && c.cliente !== f.cliente) return false;
       if (f.origem && c.origem_lead !== f.origem) return false;
       if (f.produto && c.oferta_id !== f.produto) return false;
-      if (f.modalidade && c.modalidade !== f.modalidade) return false;
       if (f.funil && c.funil !== f.funil) return false;
       if (faixa) {
         const ref = new Date(c.data_reuniao_agendada ?? c.iniciada_em);
@@ -208,7 +204,6 @@ function Calls() {
         c.cliente,
         c.origem_lead,
         c.ofertas?.nome ?? "",
-        c.modalidade,
         c.funil,
         c.nome_lead,
         c.telefone_lead,
@@ -293,12 +288,6 @@ function Calls() {
           <option value="">Todos os produtos</option>
           {ofertas.map(([id, nome]) => (
             <option key={id} value={id}>{nome}</option>
-          ))}
-        </select>
-        <select value={f.modalidade} onChange={(e) => setF({ ...f, modalidade: e.target.value })} className={selectClass}>
-          <option value="">Todas as modalidades</option>
-          {(modalidades ?? []).map((m) => (
-            <option key={m.id} value={m.nome}>{m.nome}</option>
           ))}
         </select>
         <select value={f.funil} onChange={(e) => setF({ ...f, funil: e.target.value })} className={selectClass}>

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCadastro } from "@/components/Cadastros";
+import { NovoCadastroRapido } from "@/components/NovoCadastroRapido";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,6 @@ function NovaCall() {
     time: "",
     closer_id: "",
     sdr_id: "",
-    modalidade: "online",
     funil: "",
     origem_lead: "",
     data_reuniao_agendada: "",
@@ -83,7 +83,6 @@ function NovaCall() {
   const origens = useCadastro("origens").data;
   const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
-  const modalidades = useCadastro("modalidades").data;
 
   // Preenche closer ou SDR com o usuário logado, conforme o tipo escolhido.
   useEffect(() => {
@@ -108,7 +107,6 @@ function NovaCall() {
         time: form.time,
         closer_id: form.closer_id || null,
         sdr_id: form.sdr_id || null,
-        modalidade: form.modalidade,
         funil: form.funil,
         origem_lead: form.origem_lead,
         data_reuniao_agendada: form.data_reuniao_agendada
@@ -160,7 +158,7 @@ function NovaCall() {
               <section>
                 <h3 className="mb-1 text-base font-semibold text-primary">2. Iniciar a call</h3>
                 <p>
-                  Preencha este formulário: identificação (cliente, oferta, time, closer, SDR, modalidade, funil, origem e data agendada) e os dados do lead. Depois clique em <strong>Iniciar</strong>.
+                  Preencha este formulário: identificação (cliente, oferta, time, closer, SDR, funil, origem e data agendada) e os dados do lead. Depois clique em <strong>Iniciar</strong>.
                 </p>
               </section>
 
@@ -219,52 +217,73 @@ function NovaCall() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="cliente">Cliente</Label>
-              <select
-                id="cliente"
-                value={form.cliente}
-                onChange={(e) => setForm({ ...form, cliente: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">Selecione…</option>
-                {(clientes ?? []).map((c) => (
-                  <option key={c.id} value={c.nome}>
-                    {c.nome}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  id="cliente"
+                  value={form.cliente}
+                  onChange={(e) => setForm({ ...form, cliente: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">Selecione…</option>
+                  {(clientes ?? []).map((c) => (
+                    <option key={c.id} value={c.nome}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="clientes"
+                  titulo="Cliente"
+                  onCriado={(i) => setForm((f) => ({ ...f, cliente: i.nome }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="oferta">Produto / oferta</Label>
-              <select
-                id="oferta"
-                required
-                value={form.oferta_id}
-                onChange={(e) => setForm({ ...form, oferta_id: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">Selecione…</option>
-                {(ofertas ?? []).map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.nome}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  id="oferta"
+                  required
+                  value={form.oferta_id}
+                  onChange={(e) => setForm({ ...form, oferta_id: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">Selecione…</option>
+                  {(ofertas ?? []).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="ofertas"
+                  titulo="Produto"
+                  onCriado={(i) => setForm((f) => ({ ...f, oferta_id: i.id }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="time">Time</Label>
-              <select
-                id="time"
-                value={form.time}
-                onChange={(e) => setForm({ ...form, time: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">Selecione…</option>
-                {(times ?? []).map((t) => (
-                  <option key={t.id} value={t.nome}>
-                    {t.nome}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  id="time"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">Selecione…</option>
+                  {(times ?? []).map((t) => (
+                    <option key={t.id} value={t.nome}>
+                      {t.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="times"
+                  titulo="Time"
+                  onCriado={(i) => setForm((f) => ({ ...f, time: i.nome }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="closer">Closer</Label>
@@ -281,6 +300,11 @@ function NovaCall() {
                   </option>
                 ))}
               </select>
+              {papel === "lider" && (
+                <p className="text-xs text-muted-foreground">
+                  Para incluir alguém, convide em Cérebro CX → Cadastros.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="sdr">SDR</Label>
@@ -299,51 +323,50 @@ function NovaCall() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="modalidade">Modalidade</Label>
-              <select
-                id="modalidade"
-                value={form.modalidade}
-                onChange={(e) => setForm({ ...form, modalidade: e.target.value })}
-                className={selectClass}
-              >
-                {(modalidades ?? []).map((m) => (
-                  <option key={m.id} value={m.nome}>
-                    {m.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="funil">Funil</Label>
-              <select
-                id="funil"
-                value={form.funil}
-                onChange={(e) => setForm({ ...form, funil: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">Selecione…</option>
-                {(funis ?? []).map((f) => (
-                  <option key={f.id} value={f.nome}>
-                    {f.nome}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  id="funil"
+                  value={form.funil}
+                  onChange={(e) => setForm({ ...form, funil: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">Selecione…</option>
+                  {(funis ?? []).map((f) => (
+                    <option key={f.id} value={f.nome}>
+                      {f.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="funis"
+                  titulo="Funil"
+                  onCriado={(i) => setForm((f) => ({ ...f, funil: i.nome }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="origem">Origem</Label>
-              <select
-                id="origem"
-                value={form.origem_lead}
-                onChange={(e) => setForm({ ...form, origem_lead: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">Selecione…</option>
-                {(origens ?? []).map((o) => (
-                  <option key={o.id} value={o.nome}>
-                    {o.nome}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  id="origem"
+                  value={form.origem_lead}
+                  onChange={(e) => setForm({ ...form, origem_lead: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">Selecione…</option>
+                  {(origens ?? []).map((o) => (
+                    <option key={o.id} value={o.nome}>
+                      {o.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="origens"
+                  titulo="Origem"
+                  onCriado={(i) => setForm((f) => ({ ...f, origem_lead: i.nome }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="agendada">Data/hora agendada</Label>
@@ -356,6 +379,7 @@ function NovaCall() {
             </div>
           </div>
         </section>
+
 
         <section className="card-cx space-y-4 p-6">
           <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Lead</h2>
