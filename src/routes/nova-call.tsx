@@ -154,7 +154,7 @@ function NovaCall() {
                 </p>
               </section>
 
-              <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-warning-foreground">
+              <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-foreground">
                 <h3 className="mb-1 text-base font-semibold">Importante: use Chrome ou Edge</h3>
                 <p>
                   A captura do áudio da aba do Meet só funciona no Chrome e no Edge. Firefox e Safari não oferecem essa opção, então use um desses navegadores para calls ao vivo.
