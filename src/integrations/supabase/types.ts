@@ -514,7 +514,9 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_adm: { Args: never; Returns: boolean }
       is_lider: { Args: never; Returns: boolean }
+      pode_ver_tudo: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "lider" | "closer" | "sdr" | "adm"
