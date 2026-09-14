@@ -14,16 +14,325 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      calls: {
+        Row: {
+          encerrada_em: string | null
+          id: string
+          iniciada_em: string
+          nome_lead: string
+          notas_crm: string
+          objetivo: string
+          oferta_id: string | null
+          origem_lead: string
+          resumo_falas_antigas: string | null
+          resumo_final: Json | null
+          tipo: string
+          vendedor_id: string
+        }
+        Insert: {
+          encerrada_em?: string | null
+          id?: string
+          iniciada_em?: string
+          nome_lead?: string
+          notas_crm?: string
+          objetivo?: string
+          oferta_id?: string | null
+          origem_lead?: string
+          resumo_falas_antigas?: string | null
+          resumo_final?: Json | null
+          tipo?: string
+          vendedor_id: string
+        }
+        Update: {
+          encerrada_em?: string | null
+          id?: string
+          iniciada_em?: string
+          nome_lead?: string
+          notas_crm?: string
+          objetivo?: string
+          oferta_id?: string | null
+          origem_lead?: string
+          resumo_falas_antigas?: string | null
+          resumo_final?: Json | null
+          tipo?: string
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_api: {
+        Row: {
+          chave: string
+          descricao_ajuda: string
+          valor: string
+        }
+        Insert: {
+          chave: string
+          descricao_ajuda?: string
+          valor?: string
+        }
+        Update: {
+          chave?: string
+          descricao_ajuda?: string
+          valor?: string
+        }
+        Relationships: []
+      }
+      falas: {
+        Row: {
+          call_id: string
+          created_at: string
+          falante: string
+          id: string
+          texto: string
+        }
+        Insert: {
+          call_id: string
+          created_at?: string
+          falante?: string
+          id?: string
+          texto?: string
+        }
+        Update: {
+          call_id?: string
+          created_at?: string
+          falante?: string
+          id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "falas_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objecoes: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          como_quebrar: string
+          created_at: string
+          gatilho: string
+          id: string
+          oferta_id: string | null
+          ordem: number
+          pergunta_pronta: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string
+          como_quebrar?: string
+          created_at?: string
+          gatilho?: string
+          id?: string
+          oferta_id?: string | null
+          ordem?: number
+          pergunta_pronta?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          como_quebrar?: string
+          created_at?: string
+          gatilho?: string
+          id?: string
+          oferta_id?: string | null
+          ordem?: number
+          pergunta_pronta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objecoes_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ofertas: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          descricao: string
+          diferenciais: string
+          garantia: string
+          id: string
+          nome: string
+          preco_condicoes: string
+          publico_ideal: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string
+          diferenciais?: string
+          garantia?: string
+          id?: string
+          nome: string
+          preco_condicoes?: string
+          publico_ideal?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string
+          diferenciais?: string
+          garantia?: string
+          id?: string
+          nome?: string
+          preco_condicoes?: string
+          publico_ideal?: string
+        }
+        Relationships: []
+      }
+      perfis_disc: {
+        Row: {
+          como_conduzir: string
+          como_identificar: string
+          evitar: string
+          id: string
+          tipo: string
+        }
+        Insert: {
+          como_conduzir?: string
+          como_identificar?: string
+          evitar?: string
+          id?: string
+          tipo: string
+        }
+        Update: {
+          como_conduzir?: string
+          como_identificar?: string
+          evitar?: string
+          id?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          nome?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      regras_copiloto: {
+        Row: {
+          chave: string
+          descricao_ajuda: string
+          valor: string
+        }
+        Insert: {
+          chave: string
+          descricao_ajuda?: string
+          valor?: string
+        }
+        Update: {
+          chave?: string
+          descricao_ajuda?: string
+          valor?: string
+        }
+        Relationships: []
+      }
+      sugestoes: {
+        Row: {
+          call_id: string
+          created_at: string
+          fala_id: string | null
+          id: string
+          latencia_ms: number | null
+          resposta: Json
+        }
+        Insert: {
+          call_id: string
+          created_at?: string
+          fala_id?: string | null
+          id?: string
+          latencia_ms?: number | null
+          resposta?: Json
+        }
+        Update: {
+          call_id?: string
+          created_at?: string
+          fala_id?: string | null
+          id?: string
+          latencia_ms?: number | null
+          resposta?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sugestoes_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sugestoes_fala_id_fkey"
+            columns: ["fala_id"]
+            isOneToOne: false
+            referencedRelation: "falas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_lider: { Args: never; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "lider" | "closer" | "sdr"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +459,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["lider", "closer", "sdr"],
+    },
   },
 } as const
