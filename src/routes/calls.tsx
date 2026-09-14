@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCadastro } from "@/components/Cadastros";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -20,11 +23,103 @@ export const Route = createFileRoute("/calls")({
 
 type ResumoFinal = { temperatura_final?: string } | null;
 
+const selectClass = "h-10 rounded-md border border-input bg-input px-3 text-sm";
+
+const PERIODOS = [
+  { valor: "", rotulo: "Qualquer período" },
+  { valor: "hoje", rotulo: "Hoje" },
+  { valor: "ontem", rotulo: "Ontem" },
+  { valor: "7d", rotulo: "Últimos 7 dias" },
+  { valor: "30d", rotulo: "Últimos 30 dias" },
+  { valor: "mes", rotulo: "Mês atual" },
+  { valor: "mes_anterior", rotulo: "Mês anterior" },
+  { valor: "custom", rotulo: "Personalizado" },
+];
+
+function intervalo(periodo: string, de: string, ate: string): [Date, Date] | null {
+  const agora = new Date();
+  const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const fimHoje = new Date(inicioHoje.getTime() + 86400000);
+  switch (periodo) {
+    case "hoje":
+      return [inicioHoje, fimHoje];
+    case "ontem":
+      return [new Date(inicioHoje.getTime() - 86400000), inicioHoje];
+    case "7d":
+      return [new Date(inicioHoje.getTime() - 6 * 86400000), fimHoje];
+    case "30d":
+      return [new Date(inicioHoje.getTime() - 29 * 86400000), fimHoje];
+    case "mes":
+      return [
+        new Date(agora.getFullYear(), agora.getMonth(), 1),
+        new Date(agora.getFullYear(), agora.getMonth() + 1, 1),
+      ];
+    case "mes_anterior":
+      return [
+        new Date(agora.getFullYear(), agora.getMonth() - 1, 1),
+        new Date(agora.getFullYear(), agora.getMonth(), 1),
+      ];
+    case "custom":
+      if (!de && !ate) return null;
+      return [
+        de ? new Date(`${de}T00:00:00`) : new Date(0),
+        ate ? new Date(new Date(`${ate}T00:00:00`).getTime() + 86400000) : new Date(8.64e15),
+      ];
+    default:
+      return null;
+  }
+}
+
+const moeda = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+function Card({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div className="card-cx p-4">
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">{rotulo}</p>
+      <p className="mt-2 text-2xl text-primary">{valor}</p>
+    </div>
+  );
+}
+
+const COLUNAS_CSV = [
+  "time",
+  "closer",
+  "sdr",
+  "cliente",
+  "origem_lead",
+  "produto",
+  "modalidade",
+  "funil",
+  "nome_lead",
+  "telefone_lead",
+  "email_lead",
+  "data_reuniao_agendada",
+  "status_reuniao",
+  "resultado",
+  "valor_vendido",
+  "valor_coletado",
+  "valor_pendente",
+  "forma_pagamento",
+  "observacoes",
+] as const;
+
 function Calls() {
   const { papel } = useAuth();
   const [busca, setBusca] = useState("");
-  const [oferta, setOferta] = useState("");
-  const [temperatura, setTemperatura] = useState("");
+  const [f, setF] = useState({
+    time: "",
+    closer: "",
+    sdr: "",
+    cliente: "",
+    origem: "",
+    produto: "",
+    modalidade: "",
+    funil: "",
+    periodo: "",
+    de: "",
+    ate: "",
+  });
 
   const { data: calls, isLoading } = useQuery({
     queryKey: ["calls"],
@@ -38,52 +133,191 @@ function Calls() {
     },
   });
 
-  const filtradas = useMemo(() => {
-    return (calls ?? []).filter((c) => {
-      const resumo = c.resumo_final as ResumoFinal;
-      const temp = resumo?.temperatura_final ?? "";
-      return (
-        (!busca || c.nome_lead.toLowerCase().includes(busca.toLowerCase())) &&
-        (!oferta || c.ofertas?.nome === oferta) &&
-        (!temperatura || temp === temperatura)
-      );
-    });
-  }, [calls, busca, oferta, temperatura]);
+  const { data: pessoas } = useQuery({
+    queryKey: ["profiles-equipe"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, nome").order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const nomePessoa = (id: string | null) =>
+    (pessoas ?? []).find((p) => p.id === id)?.nome ?? "";
 
-  const ofertas = Array.from(new Set((calls ?? []).map((c) => c.ofertas?.nome).filter(Boolean)));
+  const times = useCadastro("times").data;
+  const origens = useCadastro("origens").data;
+  const funis = useCadastro("funis").data;
+  const clientes = useCadastro("clientes").data;
+  const modalidades = useCadastro("modalidades").data;
+
+  const filtradas = useMemo(() => {
+    const faixa = intervalo(f.periodo, f.de, f.ate);
+    return (calls ?? []).filter((c) => {
+      if (busca && !c.nome_lead.toLowerCase().includes(busca.toLowerCase())) return false;
+      if (f.time && c.time !== f.time) return false;
+      if (f.closer && c.closer_id !== f.closer) return false;
+      if (f.sdr && c.sdr_id !== f.sdr) return false;
+      if (f.cliente && c.cliente !== f.cliente) return false;
+      if (f.origem && c.origem_lead !== f.origem) return false;
+      if (f.produto && c.oferta_id !== f.produto) return false;
+      if (f.modalidade && c.modalidade !== f.modalidade) return false;
+      if (f.funil && c.funil !== f.funil) return false;
+      if (faixa) {
+        const ref = new Date(c.data_reuniao_agendada ?? c.iniciada_em);
+        if (ref < faixa[0] || ref >= faixa[1]) return false;
+      }
+      return true;
+    });
+  }, [calls, busca, f]);
+
+  const ofertas = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          (calls ?? [])
+            .filter((c) => c.oferta_id)
+            .map((c) => [c.oferta_id!, c.ofertas?.nome ?? "—"]),
+        ),
+      ),
+    [calls],
+  );
+
+  const kpis = useMemo(() => {
+    const total = filtradas.length;
+    const noShow = filtradas.filter((c) => c.status_reuniao === "no_show").length;
+    const realizadas = filtradas.filter((c) => c.status_reuniao === "realizada").length;
+    const vendas = filtradas.filter((c) => c.resultado === "venda").length;
+    const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "0%");
+    return {
+      agendadas: String(total),
+      noShow: `${noShow} (${pct(noShow, total)})`,
+      realizadas: `${realizadas} (${pct(realizadas, total)})`,
+      conversao: pct(vendas, realizadas),
+      vendido: moeda(filtradas.reduce((s, c) => s + Number(c.valor_vendido ?? 0), 0)),
+      coletado: moeda(filtradas.reduce((s, c) => s + Number(c.valor_coletado ?? 0), 0)),
+    };
+  }, [filtradas]);
+
+  function exportarCsv() {
+    const escapar = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const linhas = filtradas.map((c) =>
+      [
+        c.time,
+        nomePessoa(c.closer_id),
+        nomePessoa(c.sdr_id),
+        c.cliente,
+        c.origem_lead,
+        c.ofertas?.nome ?? "",
+        c.modalidade,
+        c.funil,
+        c.nome_lead,
+        c.telefone_lead,
+        c.email_lead,
+        c.data_reuniao_agendada ?? "",
+        c.status_reuniao,
+        c.resultado,
+        c.valor_vendido,
+        c.valor_coletado,
+        c.valor_pendente,
+        c.forma_pagamento ?? "",
+        c.observacoes,
+      ]
+        .map(escapar)
+        .join(","),
+    );
+    const csv = [COLUNAS_CSV.join(","), ...linhas].join("\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `calls-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <AppShell>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl">{papel === "lider" ? "Todas as calls" : "Minhas calls"}</h1>
+        <Button variant="outline" onClick={exportarCsv} disabled={!filtradas.length}>
+          <Download className="size-4" /> Exportar CSV
+        </Button>
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <Card rotulo="Reuniões agendadas" valor={kpis.agendadas} />
+        <Card rotulo="No-show" valor={kpis.noShow} />
+        <Card rotulo="Calls realizadas" valor={kpis.realizadas} />
+        <Card rotulo="Taxa de conversão" valor={kpis.conversao} />
+        <Card rotulo="Valor vendido" valor={kpis.vendido} />
+        <Card rotulo="Valor coletado" valor={kpis.coletado} />
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-3">
         <Input
           placeholder="Buscar lead…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="w-48"
+          className="w-44"
         />
-        <select
-          value={oferta}
-          onChange={(e) => setOferta(e.target.value)}
-          className="h-10 rounded-md border border-input bg-input px-3 text-sm"
-        >
-          <option value="">Todas as ofertas</option>
-          {ofertas.map((o) => (
-            <option key={o} value={o!}>
-              {o}
-            </option>
+        <select value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} className={selectClass}>
+          <option value="">Todos os times</option>
+          {(times ?? []).map((t) => (
+            <option key={t.id} value={t.nome}>{t.nome}</option>
           ))}
         </select>
-        <select
-          value={temperatura}
-          onChange={(e) => setTemperatura(e.target.value)}
-          className="h-10 rounded-md border border-input bg-input px-3 text-sm"
-        >
-          <option value="">Qualquer temperatura</option>
-          <option value="frio">Frio</option>
-          <option value="morno">Morno</option>
-          <option value="quente">Quente</option>
+        <select value={f.closer} onChange={(e) => setF({ ...f, closer: e.target.value })} className={selectClass}>
+          <option value="">Todos os closers</option>
+          {(pessoas ?? []).map((p) => (
+            <option key={p.id} value={p.id}>{p.nome}</option>
+          ))}
         </select>
+        <select value={f.sdr} onChange={(e) => setF({ ...f, sdr: e.target.value })} className={selectClass}>
+          <option value="">Todos os SDRs</option>
+          {(pessoas ?? []).map((p) => (
+            <option key={p.id} value={p.id}>{p.nome}</option>
+          ))}
+        </select>
+        <select value={f.cliente} onChange={(e) => setF({ ...f, cliente: e.target.value })} className={selectClass}>
+          <option value="">Todos os clientes</option>
+          {(clientes ?? []).map((c) => (
+            <option key={c.id} value={c.nome}>{c.nome}</option>
+          ))}
+        </select>
+        <select value={f.origem} onChange={(e) => setF({ ...f, origem: e.target.value })} className={selectClass}>
+          <option value="">Todas as origens</option>
+          {(origens ?? []).map((o) => (
+            <option key={o.id} value={o.nome}>{o.nome}</option>
+          ))}
+        </select>
+        <select value={f.produto} onChange={(e) => setF({ ...f, produto: e.target.value })} className={selectClass}>
+          <option value="">Todos os produtos</option>
+          {ofertas.map(([id, nome]) => (
+            <option key={id} value={id}>{nome}</option>
+          ))}
+        </select>
+        <select value={f.modalidade} onChange={(e) => setF({ ...f, modalidade: e.target.value })} className={selectClass}>
+          <option value="">Todas as modalidades</option>
+          {(modalidades ?? []).map((m) => (
+            <option key={m.id} value={m.nome}>{m.nome}</option>
+          ))}
+        </select>
+        <select value={f.funil} onChange={(e) => setF({ ...f, funil: e.target.value })} className={selectClass}>
+          <option value="">Todos os funis</option>
+          {(funis ?? []).map((x) => (
+            <option key={x.id} value={x.nome}>{x.nome}</option>
+          ))}
+        </select>
+        <select value={f.periodo} onChange={(e) => setF({ ...f, periodo: e.target.value })} className={selectClass}>
+          {PERIODOS.map((p) => (
+            <option key={p.valor} value={p.valor}>{p.rotulo}</option>
+          ))}
+        </select>
+        {f.periodo === "custom" && (
+          <>
+            <Input type="date" value={f.de} onChange={(e) => setF({ ...f, de: e.target.value })} className="w-40" />
+            <Input type="date" value={f.ate} onChange={(e) => setF({ ...f, ate: e.target.value })} className="w-40" />
+          </>
+        )}
       </div>
 
       {isLoading && <p className="text-muted-foreground">Carregando…</p>}
@@ -111,16 +345,25 @@ function Calls() {
               <div className="min-w-48">
                 <p className="font-medium">{c.nome_lead || "Sem nome"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(c.iniciada_em).toLocaleString("pt-BR")}
+                  {new Date(c.data_reuniao_agendada ?? c.iniciada_em).toLocaleString("pt-BR")}
                 </p>
               </div>
               <span className="text-sm text-muted-foreground">{c.ofertas?.nome ?? "—"}</span>
-                    <span className="ml-auto flex items-center gap-2 text-xs">
+              <span className="text-sm text-muted-foreground">{c.cliente || "—"}</span>
+              <span className="ml-auto flex flex-wrap items-center gap-2 text-xs">
+                {Number(c.valor_vendido) > 0 && (
+                  <span className="rounded-full bg-secondary px-3 py-1 text-primary">
+                    {moeda(Number(c.valor_vendido))}
+                  </span>
+                )}
                 {temp && (
                   <span className="rounded-full bg-secondary px-3 py-1 uppercase text-primary">
                     {temp}
                   </span>
                 )}
+                <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">
+                  {c.status_reuniao}
+                </span>
                 <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">
                   {c.encerrada_em ? "encerrada" : "em andamento"}
                 </span>

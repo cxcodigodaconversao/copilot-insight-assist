@@ -80,6 +80,9 @@ function Cerebro() {
         <TabsContent value="regras">
           <Regras />
         </TabsContent>
+        <TabsContent value="cadastros">
+          <Cadastros />
+        </TabsContent>
         <TabsContent value="config">
           <Config />
         </TabsContent>
