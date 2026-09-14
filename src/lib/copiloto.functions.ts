@@ -97,7 +97,7 @@ ${data.texto}`;
         messages: [{ role: "user", content: userMessage }],
       });
       try {
-        resposta = extrairJson(texto);
+        resposta = extrairJson(texto) as Saida;
       } catch {
         const retry = await chamarClaude({
           system,
@@ -112,7 +112,7 @@ ${data.texto}`;
             },
           ],
         });
-        resposta = extrairJson(retry);
+        resposta = extrairJson(retry) as Saida;
       }
     } catch (e) {
       console.error("[copiloto] falha ao gerar sugestão", e);
@@ -195,7 +195,7 @@ ${data.fala}`,
     });
     let resposta: Saida;
     try {
-      resposta = extrairJson(texto);
+      resposta = extrairJson(texto) as Saida;
     } catch {
       resposta = { erro: "Resposta não veio em JSON", bruto: texto };
     }
@@ -258,7 +258,7 @@ ${transcricao || "(sem falas registradas)"}`,
 
     let resumo: Saida;
     try {
-      resumo = extrairJson(texto);
+      resumo = extrairJson(texto) as Saida;
     } catch {
       resumo = { resumo: texto };
     }
