@@ -1,0 +1,320 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, History, Mic, MicOff, MonitorUp, Square } from "lucide-react";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
+import { AppShell } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
+import { useTranscricao, type Falante } from "@/hooks/useTranscricao";
+import {
+  gerarSugestao,
+  obterTokenDeepgram,
+  registrarFala,
+  gerarResumoCall,
+} from "@/lib/copiloto.functions";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/call/$callId")({
+  head: () => ({
+    meta: [
+      { title: "Call ao vivo — Copiloto CX" },
+      { name: "description", content: "Transcrição ao vivo e sugestões do copiloto durante a reunião." },
+      { property: "og:title", content: "Call ao vivo — Copiloto CX" },
+      { property: "og:description", content: "Transcrição ao vivo e sugestões durante a reunião." },
+    ],
+  }),
+  component: CallAoVivo,
+});
+
+type Sugestao = {
+  acao?: string;
+  leitura?: string;
+  perfil_disc?: { tipo?: string; confianca?: number };
+  etapa_spin?: string;
+  temperatura?: string;
+  sinal?: string;
+  proxima_pergunta?: string;
+  porque?: string;
+  alerta?: string | null;
+};
+
+type Linha = { id: string; falante: Falante; texto: string; parcial?: boolean };
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-secondary px-3 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function CallAoVivo() {
+  const { callId } = Route.useParams();
+  const navigate = useNavigate();
+  const chamarSugestao = useServerFn(gerarSugestao);
+  const chamarToken = useServerFn(obterTokenDeepgram);
+  const chamarFala = useServerFn(registrarFala);
+  const chamarResumo = useServerFn(gerarResumoCall);
+
+  const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [sugestao, setSugestao] = useState<Sugestao | null>(null);
+  const [historico, setHistorico] = useState<Sugestao[]>([]);
+  const [verHistorico, setVerHistorico] = useState(false);
+  const [pensando, setPensando] = useState(false);
+  const [encerrando, setEncerrando] = useState(false);
+  const [segundos, setSegundos] = useState(0);
+  const [mostrarAjuda, setMostrarAjuda] = useState(true);
+  const fimRef = useRef<HTMLDivElement>(null);
+
+  const { data: call } = useQuery({
+    queryKey: ["call", callId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("calls")
+        .select("*, ofertas(nome)")
+        .eq("id", callId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: config } = useQuery({
+    queryKey: ["config_api"],
+    queryFn: async () => {
+      const { data } = await supabase.from("config_api").select("chave, valor");
+      return Object.fromEntries((data ?? []).map((c) => [c.chave, c.valor]));
+    },
+  });
+
+  const onParcial = useCallback((falante: Falante, texto: string) => {
+    setLinhas((prev) => {
+      const semParcial = prev.filter((l) => !(l.parcial && l.falante === falante));
+      return [...semParcial, { id: `p-${falante}`, falante, texto, parcial: true }];
+    });
+  }, []);
+
+  const onFinal = useCallback(
+    (falante: Falante, texto: string) => {
+      setLinhas((prev) => [
+        ...prev.filter((l) => !(l.parcial && l.falante === falante)),
+        { id: `${Date.now()}-${Math.random()}`, falante, texto },
+      ]);
+      if (falante === "vendedor") {
+        void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
+        return;
+      }
+      setPensando(true);
+      chamarSugestao({ data: { callId, texto } })
+        .then((r) => {
+          const resposta = r.resposta as Sugestao;
+          if (resposta?.acao && resposta.acao !== "manter") {
+            setSugestao(resposta);
+            setHistorico((h) => [resposta, ...h]);
+          }
+        })
+        .catch((e: unknown) =>
+          toast.error(e instanceof Error ? e.message : "Falha ao gerar a sugestão."),
+        )
+        .finally(() => setPensando(false));
+    },
+    [callId, chamarSugestao, chamarFala],
+  );
+
+  const transcricao = useTranscricao({
+    idioma: config?.["idioma"] ?? "pt-BR",
+    onParcial,
+    onFinal,
+    onErro: (m) => toast.error(m),
+  });
+
+  useEffect(() => {
+    if (!transcricao.ativo) return;
+    const t = setInterval(() => setSegundos((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [transcricao.ativo]);
+
+  useEffect(() => {
+    fimRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [linhas]);
+
+  const pararRef = useRef(transcricao.parar);
+  pararRef.current = transcricao.parar;
+  useEffect(() => () => pararRef.current(), []);
+
+  async function iniciarEscuta() {
+    try {
+      const token = await chamarToken({ data: undefined });
+      setMostrarAjuda(false);
+      await transcricao.iniciar(token.access_token);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível liberar a transcrição.");
+    }
+  }
+
+  async function encerrar() {
+    setEncerrando(true);
+    transcricao.parar();
+    try {
+      await chamarResumo({ data: { callId } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "A call foi encerrada, mas o resumo falhou.");
+      await supabase
+        .from("calls")
+        .update({ encerrada_em: new Date().toISOString() })
+        .eq("id", callId);
+    }
+    navigate({ to: "/pos-call/$callId", params: { callId } });
+  }
+
+  async function corrigirFalante(index: number) {
+    setLinhas((prev) =>
+      prev.map((l, i) =>
+        i === index ? { ...l, falante: l.falante === "cliente" ? "vendedor" : "cliente" } : l,
+      ),
+    );
+  }
+
+  const mm = String(Math.floor(segundos / 60)).padStart(2, "0");
+  const ss = String(segundos % 60).padStart(2, "0");
+
+  return (
+    <AppShell>
+      <div className="card-cx mb-4 flex flex-wrap items-center gap-4 p-4">
+        <div>
+          <p className="font-display text-lg">{call?.nome_lead ?? "Call"}</p>
+          <p className="text-xs text-muted-foreground">{call?.ofertas?.nome ?? ""}</p>
+        </div>
+        <span className="rounded-md bg-secondary px-3 py-1 font-mono text-lg text-primary">
+          {mm}:{ss}
+        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!transcricao.ativo ? (
+            <Button onClick={iniciarEscuta}>
+              <MonitorUp className="size-4" /> Iniciar escuta
+            </Button>
+          ) : (
+            <Button variant="secondary" onClick={transcricao.alternarPausa}>
+              {transcricao.emPausa ? <Mic className="size-4" /> : <MicOff className="size-4" />}
+              {transcricao.emPausa ? "Retomar escuta" : "Pausar escuta"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setVerHistorico((v) => !v)}>
+            <History className="size-4" /> Histórico
+          </Button>
+          <Button variant="destructive" onClick={encerrar} disabled={encerrando}>
+            <Square className="size-4" /> {encerrando ? "Encerrando…" : "Encerrar call"}
+          </Button>
+        </div>
+      </div>
+
+      {mostrarAjuda && !transcricao.ativo && (
+        <div className="card-cx mb-4 space-y-2 p-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Antes de iniciar a escuta:</p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>Abra a reunião do Google Meet em outra aba do Chrome.</li>
+            <li>Clique em “Iniciar escuta” e permita o microfone.</li>
+            <li>Na janela que abrir, escolha a aba “Guia do Chrome” onde o Meet está.</li>
+            <li>
+              Marque <strong className="text-primary">“Compartilhar áudio da aba”</strong> antes de
+              confirmar. Sem isso o cliente não é transcrito.
+            </li>
+          </ol>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[2fr_3fr]">
+        <div className="card-cx flex h-[70vh] flex-col p-4">
+          <p className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">
+            Transcrição
+          </p>
+          <div className="flex-1 space-y-3 overflow-y-auto pr-2">
+            {linhas.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nada por aqui ainda. A transcrição aparece assim que a escuta começar.
+              </p>
+            )}
+            {linhas.map((l, i) => (
+              <div key={l.id} className="group">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "text-xs font-semibold uppercase",
+                      l.falante === "cliente" ? "text-primary" : "text-info",
+                    )}
+                  >
+                    {l.falante}
+                  </span>
+                  {!l.parcial && (
+                    <button
+                      onClick={() => corrigirFalante(i)}
+                      className="hidden text-[10px] text-muted-foreground underline group-hover:inline"
+                    >
+                      trocar falante
+                    </button>
+                  )}
+                </div>
+                <p className={cn("text-sm", l.parcial ? "text-muted-foreground italic" : "")}>
+                  {l.texto}
+                </p>
+              </div>
+            ))}
+            <div ref={fimRef} />
+          </div>
+        </div>
+
+        <div className="card-cx flex h-[70vh] flex-col p-6">
+          {sugestao?.alerta && (
+            <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive px-4 py-3 text-sm text-destructive-foreground">
+              <AlertTriangle className="size-4 shrink-0" />
+              {sugestao.alerta}
+            </div>
+          )}
+
+          {!sugestao && (
+            <p className="text-muted-foreground">
+              {pensando ? "Analisando a fala do cliente…" : "Aguardando a primeira fala do cliente."}
+            </p>
+          )}
+
+          {sugestao && (
+            <div className="flex flex-1 flex-col">
+              <p className="text-base text-muted-foreground">{sugestao.leitura}</p>
+              <p className="mt-6 font-display text-3xl leading-snug text-primary">
+                {sugestao.proxima_pergunta}
+              </p>
+              <p className="mt-4 text-sm text-muted-foreground">{sugestao.porque}</p>
+              <div className="mt-auto flex flex-wrap gap-2 pt-6">
+                <Chip>
+                  DISC {sugestao.perfil_disc?.tipo ?? "—"}
+                  {sugestao.perfil_disc?.confianca != null &&
+                    ` · ${Math.round(sugestao.perfil_disc.confianca * 100)}%`}
+                </Chip>
+                <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
+                <Chip>{sugestao.temperatura ?? "—"}</Chip>
+                <Chip>{sugestao.sinal ?? "nenhum"}</Chip>
+                {pensando && <Chip>analisando…</Chip>}
+              </div>
+            </div>
+          )}
+
+          {verHistorico && (
+            <div className="mt-6 max-h-48 space-y-3 overflow-y-auto border-t border-border pt-4">
+              {historico.slice(1).map((s, i) => (
+                <div key={i} className="text-sm">
+                  <p className="text-foreground">{s.proxima_pergunta}</p>
+                  <p className="text-xs text-muted-foreground">{s.leitura}</p>
+                </div>
+              ))}
+              {historico.length <= 1 && (
+                <p className="text-sm text-muted-foreground">Sem sugestões anteriores.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
