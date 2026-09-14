@@ -362,7 +362,7 @@ function ObjecaoCard({
         <div className="space-y-2">
           <Label>Vale para</Label>
           <select
-            value={f.oferta_id}
+            value={f.oferta_id ?? ""}
             onChange={(e) => setF({ ...f, oferta_id: e.target.value || null })}
             className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
           >
