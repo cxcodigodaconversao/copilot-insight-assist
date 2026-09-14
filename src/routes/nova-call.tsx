@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCadastro } from "@/components/Cadastros";
+import { NovoCadastroRapido } from "@/components/NovoCadastroRapido";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,6 @@ function NovaCall() {
     time: "",
     closer_id: "",
     sdr_id: "",
-    modalidade: "online",
     funil: "",
     origem_lead: "",
     data_reuniao_agendada: "",
@@ -83,7 +83,6 @@ function NovaCall() {
   const origens = useCadastro("origens").data;
   const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
-  const modalidades = useCadastro("modalidades").data;
 
   // Preenche closer ou SDR com o usuário logado, conforme o tipo escolhido.
   useEffect(() => {
@@ -108,7 +107,6 @@ function NovaCall() {
         time: form.time,
         closer_id: form.closer_id || null,
         sdr_id: form.sdr_id || null,
-        modalidade: form.modalidade,
         funil: form.funil,
         origem_lead: form.origem_lead,
         data_reuniao_agendada: form.data_reuniao_agendada
@@ -160,7 +158,7 @@ function NovaCall() {
               <section>
                 <h3 className="mb-1 text-base font-semibold text-primary">2. Iniciar a call</h3>
                 <p>
-                  Preencha este formulário: identificação (cliente, oferta, time, closer, SDR, modalidade, funil, origem e data agendada) e os dados do lead. Depois clique em <strong>Iniciar</strong>.
+                  Preencha este formulário: identificação (cliente, oferta, time, closer, SDR, funil, origem e data agendada) e os dados do lead. Depois clique em <strong>Iniciar</strong>.
                 </p>
               </section>
 
@@ -252,7 +250,7 @@ function NovaCall() {
                 >
                   <option value="">Selecione…</option>
                   {(ofertas ?? []).map((o) => (
-                    <option key={o.id} value={o.nome ? o.id : o.id}>
+                    <option key={o.id} value={o.id}>
                       {o.nome}
                     </option>
                   ))}
