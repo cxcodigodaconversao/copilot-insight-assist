@@ -41,10 +41,10 @@ const CATEGORIAS = [
 ] as const;
 
 function Cerebro() {
-  const { papel, carregando } = useAuth();
+  const { ehAdm, podeVerTudo, carregando } = useAuth();
 
   if (carregando) return <AppShell>Carregando…</AppShell>;
-  if (papel !== "lider")
+  if (!podeVerTudo)
     return (
       <AppShell>
         <div className="card-cx p-10 text-center text-muted-foreground">
@@ -58,6 +58,11 @@ function Cerebro() {
       <h1 className="mb-6 text-2xl">
         Cérebro <span className="text-primary">CX</span>
       </h1>
+      {!ehAdm && (
+        <div className="mb-6 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+          Você está no modo somente leitura. Apenas o administrador pode alterar estes conteúdos.
+        </div>
+      )}
       <Tabs defaultValue="ofertas">
         <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
