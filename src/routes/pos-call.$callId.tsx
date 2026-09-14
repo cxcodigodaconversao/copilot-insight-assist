@@ -28,7 +28,7 @@ type Resumo = {
   temperatura_final?: string;
 };
 
-function Bloco({ titulo, itens }: { titulo: string; itens?: string[] }) {
+function Bloco({ titulo, itens }: { titulo: string; itens?: string[] | undefined }) {
   if (!itens?.length) return null;
   return (
     <div className="card-cx p-5">

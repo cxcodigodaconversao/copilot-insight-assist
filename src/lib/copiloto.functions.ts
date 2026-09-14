@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+type Saida = { [k: string]: Json };
+
 const SugestaoInput = z.object({
   callId: z.string().uuid(),
   texto: z.string().min(1),
@@ -85,7 +88,7 @@ ${data.texto}`;
     const model = ctx.config["modelo_claude"] || "claude-sonnet-4-6";
     const maxTokens = Number(ctx.config["max_tokens"] ?? 600);
 
-    let resposta: unknown;
+    let resposta: Saida;
     try {
       const texto = await chamarClaude({
         system,
@@ -94,7 +97,7 @@ ${data.texto}`;
         messages: [{ role: "user", content: userMessage }],
       });
       try {
-        resposta = extrairJson(texto);
+        resposta = extrairJson(texto) as Saida;
       } catch {
         const retry = await chamarClaude({
           system,
@@ -109,7 +112,7 @@ ${data.texto}`;
             },
           ],
         });
-        resposta = extrairJson(retry);
+        resposta = extrairJson(retry) as Saida;
       }
     } catch (e) {
       console.error("[copiloto] falha ao gerar sugestão", e);
@@ -190,9 +193,9 @@ ${data.fala}`,
         },
       ],
     });
-    let resposta: unknown;
+    let resposta: Saida;
     try {
-      resposta = extrairJson(texto);
+      resposta = extrairJson(texto) as Saida;
     } catch {
       resposta = { erro: "Resposta não veio em JSON", bruto: texto };
     }
@@ -253,9 +256,9 @@ ${transcricao || "(sem falas registradas)"}`,
       ],
     });
 
-    let resumo: unknown;
+    let resumo: Saida;
     try {
-      resumo = extrairJson(texto);
+      resumo = extrairJson(texto) as Saida;
     } catch {
       resumo = { resumo: texto };
     }
