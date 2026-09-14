@@ -292,7 +292,7 @@ function Equipe() {
         data: {
           nome: form.nome.trim(),
           email: form.email.trim(),
-          role: form.role as "closer" | "sdr",
+          role: form.role as "lider" | "closer" | "sdr",
           redirectTo: window.location.origin,
         },
       }),
@@ -307,10 +307,10 @@ function Equipe() {
   return (
     <div className="card-cx space-y-4 p-5 lg:col-span-2">
       <div>
-        <h3 className="text-lg">Closers e SDRs</h3>
+        <h3 className="text-lg">Equipe</h3>
         <p className="text-xs text-muted-foreground">
           Convide por e-mail. A pessoa cria a senha e passa a aparecer nos campos Closer e SDR da
-          nova call.
+          nova call. Somente o administrador pode convidar.
         </p>
       </div>
 
@@ -347,6 +347,7 @@ function Equipe() {
             onChange={(e) => setForm({ ...form, role: e.target.value })}
             className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
           >
+            <option value="lider">Líder</option>
             <option value="closer">Closer</option>
             <option value="sdr">SDR</option>
           </select>

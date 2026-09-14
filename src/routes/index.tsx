@@ -29,10 +29,8 @@ export const Route = createFileRoute("/")({
 function Login() {
   const { session, carregando } = useAuth();
   const navigate = useNavigate();
-  const [modo, setModo] = useState<"entrar" | "criar">("entrar");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [nome, setNome] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -43,23 +41,9 @@ function Login() {
     e.preventDefault();
     setEnviando(true);
     try {
-      if (modo === "entrar") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
-        if (error) throw error;
-        navigate({ to: "/calls" });
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password: senha,
-          options: {
-            data: { nome },
-            emailRedirectTo: `${window.location.origin}/calls`,
-          },
-        });
-        if (error) throw error;
-        if (data.session) navigate({ to: "/calls" });
-        else toast.success("Conta criada. Confirme o e-mail para entrar.");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+      if (error) throw error;
+      navigate({ to: "/calls" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível entrar.");
     } finally {
@@ -81,12 +65,6 @@ function Login() {
         </div>
 
         <form onSubmit={enviar} className="card-cx space-y-4 p-6">
-          {modo === "criar" && (
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-            </div>
-          )}
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
             <Input
@@ -109,15 +87,11 @@ function Login() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={enviando}>
-            {enviando ? "Aguarde…" : modo === "entrar" ? "Entrar" : "Criar conta"}
+            {enviando ? "Aguarde…" : "Entrar"}
           </Button>
-          <button
-            type="button"
-            onClick={() => setModo(modo === "entrar" ? "criar" : "entrar")}
-            className="w-full text-center text-sm text-muted-foreground hover:text-primary"
-          >
-            {modo === "entrar" ? "Criar uma conta" : "Já tenho conta"}
-          </button>
+          <p className="text-center text-xs text-muted-foreground">
+            O acesso é criado por convite do administrador.
+          </p>
         </form>
       </div>
     </div>
