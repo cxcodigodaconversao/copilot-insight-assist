@@ -83,6 +83,21 @@ function Login() {
           <p className="text-sm text-muted-foreground">Comercial 10X · Código da Conversão</p>
         </div>
 
+        <div className="card-cx mb-4 space-y-3 p-6">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={entrarComGoogle}
+            disabled={entrandoGoogle}
+          >
+            {entrandoGoogle ? "Abrindo o Google…" : "Entrar com o Google"}
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Use a mesma conta Google dos seus outros aplicativos.
+          </p>
+        </div>
+
         <form onSubmit={enviar} className="card-cx space-y-4 p-6">
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
