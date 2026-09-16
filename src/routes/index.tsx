@@ -33,6 +33,24 @@ function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [entrandoGoogle, setEntrandoGoogle] = useState(false);
+
+  async function entrarComGoogle() {
+    setEntrandoGoogle(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        toast.error("Não foi possível entrar com o Google.");
+        return;
+      }
+      if (result.redirected) return;
+      navigate({ to: "/calls" });
+    } finally {
+      setEntrandoGoogle(false);
+    }
+  }
 
   useEffect(() => {
     if (!carregando && session) navigate({ to: "/calls" });
