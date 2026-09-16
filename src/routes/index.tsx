@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Headphones } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,24 @@ function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [entrandoGoogle, setEntrandoGoogle] = useState(false);
+
+  async function entrarComGoogle() {
+    setEntrandoGoogle(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        toast.error("Não foi possível entrar com o Google.");
+        return;
+      }
+      if (result.redirected) return;
+      navigate({ to: "/calls" });
+    } finally {
+      setEntrandoGoogle(false);
+    }
+  }
 
   useEffect(() => {
     if (!carregando && session) navigate({ to: "/calls" });
@@ -62,6 +81,21 @@ function Login() {
             Copiloto <span className="text-primary">CX</span>
           </h1>
           <p className="text-sm text-muted-foreground">Comercial 10X · Código da Conversão</p>
+        </div>
+
+        <div className="card-cx mb-4 space-y-3 p-6">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={entrarComGoogle}
+            disabled={entrandoGoogle}
+          >
+            {entrandoGoogle ? "Abrindo o Google…" : "Entrar com o Google"}
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Use a mesma conta Google dos seus outros aplicativos.
+          </p>
         </div>
 
         <form onSubmit={enviar} className="card-cx space-y-4 p-6">
