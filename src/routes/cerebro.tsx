@@ -666,7 +666,30 @@ type RespostaTeste = {
 
 function formatarRotulo(valor?: string) {
   if (!valor) return "Não identificado";
-  return valor.replaceAll("_", " ");
+  const rotulos: Record<string, string> = {
+    orientar: "Orientar",
+    alerta: "Alerta",
+    situacao: "Situação",
+    problema: "Problema",
+    implicacao: "Implicação",
+    necessidade: "Necessidade",
+    fechamento: "Fechamento",
+    frio: "Frio",
+    morno: "Morno",
+    quente: "Quente",
+    indefinido: "Indefinido",
+    objecao_preco: "Objeção de preço",
+    objecao_tempo: "Objeção de tempo",
+    objecao_confianca: "Objeção de confiança",
+    objecao_autoridade: "Objeção de autoridade",
+    objecao_necessidade: "Objeção de necessidade",
+    objecao_concorrente: "Objeção sobre concorrente",
+    sinal_compra: "Sinal de compra",
+    duvida_produto: "Dúvida sobre o produto",
+    desvio: "Desvio de assunto",
+    nenhum: "Nenhum",
+  };
+  return rotulos[valor] ?? valor.replaceAll("_", " ");
 }
 
 function Teste() {
