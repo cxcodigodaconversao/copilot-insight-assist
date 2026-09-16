@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -652,11 +652,28 @@ function ConfigLinha({
   );
 }
 
+type RespostaTeste = {
+  acao?: "manter" | "orientar" | "alerta" | string;
+  leitura?: string;
+  perfil_disc?: { tipo?: string; confianca?: number };
+  etapa_spin?: string;
+  temperatura?: string;
+  sinal?: string;
+  proxima_pergunta?: string;
+  porque?: string;
+  alerta?: string | null;
+};
+
+function formatarRotulo(valor?: string) {
+  if (!valor) return "Não identificado";
+  return valor.replaceAll("_", " ");
+}
+
 function Teste() {
   const chamarTeste = useServerFn(testarCerebro);
   const [ofertaId, setOfertaId] = useState("");
   const [texto, setTexto] = useState("Achei caro, preciso pensar melhor.");
-  const [saida, setSaida] = useState("");
+  const [saida, setSaida] = useState<RespostaTeste | null>(null);
   const [rodando, setRodando] = useState(false);
 
   const { data: ofertas } = useQuery({
@@ -668,7 +685,7 @@ function Teste() {
     setRodando(true);
     try {
       const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto } });
-      setSaida(JSON.stringify(r.resposta, null, 2));
+      setSaida(r.resposta as RespostaTeste);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "O teste falhou.");
     } finally {
@@ -702,11 +719,114 @@ function Teste() {
           {rodando ? "Testando…" : "Testar"}
         </Button>
       </div>
-      <div className="card-cx p-5">
-        <Label>Resposta do copiloto</Label>
-        <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
-          {saida || "Rode o teste para ver a resposta."}
-        </pre>
+      <div className="card-cx overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-base font-semibold">Resposta do copiloto</h2>
+          {saida && (
+            <span className="flex items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-2 py-1 text-xs font-semibold text-success">
+              <CheckCircle2 className="size-3.5" /> Analisado
+            </span>
+          )}
+        </div>
+
+        {!saida && (
+          <div className="flex min-h-72 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+            {rodando
+              ? "Analisando a fala do cliente…"
+              : "Faça um teste para visualizar a orientação do copiloto."}
+          </div>
+        )}
+
+        {saida?.acao === "manter" && (
+          <div className="flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center">
+            <CheckCircle2 className="size-8 text-success" />
+            <div>
+              <p className="font-medium text-foreground">Continue conduzindo a conversa</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                O copiloto não identificou necessidade de uma nova orientação neste momento.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {saida && saida.acao !== "manter" && (
+          <div className="space-y-6 p-5">
+            <section className="space-y-2">
+              <Label>Leitura do cenário</Label>
+              <p className="text-base font-medium leading-relaxed text-foreground">
+                {saida.leitura || "Nenhuma leitura informada."}
+              </p>
+            </section>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-border bg-secondary p-3">
+                <Label className="text-muted-foreground">Ação recomendada</Label>
+                <p className="mt-1 text-sm font-semibold capitalize text-info">
+                  {formatarRotulo(saida.acao)}
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-secondary p-3">
+                <Label className="text-muted-foreground">Etapa SPIN</Label>
+                <p className="mt-1 text-sm font-semibold capitalize text-foreground">
+                  {formatarRotulo(saida.etapa_spin)}
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-secondary p-3">
+                <Label className="text-muted-foreground">Temperatura</Label>
+                <p className="mt-1 text-sm font-semibold capitalize text-warning">
+                  {formatarRotulo(saida.temperatura)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-primary/20 bg-primary/5 p-4">
+              <div>
+                <Label className="text-primary">Perfil DISC</Label>
+                <p className="mt-1 text-sm font-medium capitalize text-foreground">
+                  {formatarRotulo(saida.perfil_disc?.tipo)}
+                </p>
+              </div>
+              <div className="text-right">
+                <Label className="text-primary">Confiança</Label>
+                <p className="mt-1 text-sm font-medium text-foreground">
+                  {saida.perfil_disc?.confianca == null
+                    ? "Não informada"
+                    : `${Math.round(saida.perfil_disc.confianca * 100)}%`}
+                </p>
+              </div>
+              <div className="min-w-40 sm:text-right">
+                <Label className="text-primary">Sinal detectado</Label>
+                <p className="mt-1 text-sm font-medium capitalize text-foreground">
+                  {formatarRotulo(saida.sinal)}
+                </p>
+              </div>
+            </div>
+
+            <section className="rounded-md border-l-4 border-primary bg-primary/10 p-5">
+              <Label className="text-primary">Próxima pergunta</Label>
+              <p className="mt-2 font-display text-xl font-medium leading-relaxed text-foreground">
+                {saida.proxima_pergunta || "Nenhuma pergunta sugerida."}
+              </p>
+            </section>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="space-y-2">
+                <Label>Por que esta abordagem?</Label>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {saida.porque || "Nenhuma justificativa informada."}
+                </p>
+              </section>
+              {saida.alerta && (
+                <section className="rounded-md border border-destructive/30 bg-destructive/10 p-4">
+                  <Label className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="size-4" /> Alerta importante
+                  </Label>
+                  <p className="mt-2 text-sm leading-relaxed text-foreground">{saida.alerta}</p>
+                </section>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
