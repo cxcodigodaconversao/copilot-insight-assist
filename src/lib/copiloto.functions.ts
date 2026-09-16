@@ -197,7 +197,22 @@ ${data.fala}`,
     try {
       resposta = extrairJson(texto) as Saida;
     } catch {
-      resposta = { erro: "Resposta não veio em JSON", bruto: texto };
+      const corrigida = await chamarClaude({
+        system,
+        model: ctx.config["modelo_claude"] || "claude-sonnet-4-6",
+        maxTokens: Number(ctx.config["max_tokens"] ?? 600),
+        messages: [
+          {
+            role: "user",
+            content: `A resposta abaixo foi cortada ou não pôde ser lida. Reenvie uma versão curta e completa, somente no formato JSON solicitado, sem markdown:\n\n${texto}`,
+          },
+        ],
+      });
+      try {
+        resposta = extrairJson(corrigida) as Saida;
+      } catch {
+        throw new Error("A resposta do copiloto ficou incompleta. Tente novamente.");
+      }
     }
     return { resposta, system, latencia_ms: Date.now() - inicio };
   });
