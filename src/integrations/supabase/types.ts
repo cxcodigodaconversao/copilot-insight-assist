@@ -371,6 +371,7 @@ export type Database = {
       ofertas: {
         Row: {
           ativo: boolean
+          cliente_id: string | null
           created_at: string
           descricao: string
           diferenciais: string
@@ -382,6 +383,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cliente_id?: string | null
           created_at?: string
           descricao?: string
           diferenciais?: string
@@ -393,6 +395,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cliente_id?: string | null
           created_at?: string
           descricao?: string
           diferenciais?: string
@@ -402,7 +405,15 @@ export type Database = {
           preco_condicoes?: string
           publico_ideal?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ofertas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       origens: {
         Row: {
@@ -590,6 +601,7 @@ export type Database = {
       times: {
         Row: {
           ativo: boolean
+          cliente_id: string | null
           created_at: string
           id: string
           nome: string
@@ -597,6 +609,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cliente_id?: string | null
           created_at?: string
           id?: string
           nome: string
@@ -604,12 +617,21 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cliente_id?: string | null
           created_at?: string
           id?: string
           nome?: string
           ordem?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "times_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
