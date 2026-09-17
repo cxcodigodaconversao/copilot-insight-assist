@@ -729,7 +729,7 @@ function Teste() {
   async function rodar() {
     setRodando(true);
     try {
-      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto } });
+      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto, tipo } });
       setSaida(r.resposta as RespostaTeste);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "O teste falhou.");
