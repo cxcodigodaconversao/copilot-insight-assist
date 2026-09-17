@@ -106,6 +106,8 @@ function BlocoResultado({ call }: { call: CallResultado }) {
       .update({
         status_reuniao: r.status_reuniao,
         resultado: r.resultado,
+        resultado_sdr: call.tipo === "sdr" ? r.resultado_sdr || null : null,
+        call_origem_id: call.tipo !== "sdr" ? r.call_origem_id || null : null,
         valor_vendido: Number(r.valor_vendido || 0),
         valor_coletado: Number(r.valor_coletado || 0),
         valor_pendente: Number(r.valor_pendente || 0),
