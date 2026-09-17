@@ -644,34 +644,89 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
   );
 }
 
-function Regras() {
+type Regra = {
+  id: string;
+  chave: string;
+  valor: string;
+  descricao_ajuda: string;
+  oferta_id: string | null;
+};
+
+function Regras({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["regras_copiloto"],
-    queryFn: async () => (await supabase.from("regras_copiloto").select("*").order("chave")).data,
+    queryFn: async () =>
+      ((await supabase.from("regras_copiloto").select("*").order("chave")).data ?? []) as Regra[],
   });
 
+  const globais = (data ?? []).filter((r) => r.oferta_id === null);
+  const doProduto = new Map(
+    (data ?? []).filter((r) => ofertaId && r.oferta_id === ofertaId).map((r) => [r.chave, r]),
+  );
+
+  function recarregar() {
+    qc.invalidateQueries({ queryKey: ["regras_copiloto"] });
+  }
+
   async function salvar(chave: string, valor: string) {
-    const { error } = await supabase.from("regras_copiloto").update({ valor }).eq("chave", chave);
-    if (error) {
-      toast.error("Não foi possível salvar.");
-      return;
+    if (ofertaId) {
+      const existente = doProduto.get(chave);
+      const base = globais.find((g) => g.chave === chave);
+      const { error } = existente
+        ? await supabase.from("regras_copiloto").update({ valor }).eq("id", existente.id)
+        : await supabase.from("regras_copiloto").insert({
+            chave,
+            valor,
+            descricao_ajuda: base?.descricao_ajuda ?? "",
+            oferta_id: ofertaId,
+          });
+      if (error) {
+        toast.error("Não foi possível salvar.");
+        return;
+      }
+    } else {
+      const base = globais.find((g) => g.chave === chave);
+      if (!base) return;
+      const { error } = await supabase.from("regras_copiloto").update({ valor }).eq("id", base.id);
+      if (error) {
+        toast.error("Não foi possível salvar.");
+        return;
+      }
     }
     toast.success("Regra salva.");
-    qc.invalidateQueries({ queryKey: ["regras_copiloto"] });
+    recarregar();
+  }
+
+  async function voltarAoPadrao(chave: string) {
+    const existente = doProduto.get(chave);
+    if (!existente) return;
+    const { error } = await supabase.from("regras_copiloto").delete().eq("id", existente.id);
+    if (error) {
+      toast.error("Não foi possível restaurar.");
+      return;
+    }
+    toast.success("Regra voltou ao padrão.");
+    recarregar();
   }
 
   return (
     <div className="space-y-4">
-      {(data ?? []).map((r) => (
-        <RegraCard
-          key={r.chave}
-          chave={r.chave}
-          valorInicial={r.valor}
-          ajuda={r.descricao_ajuda}
-          onSalvar={salvar}
-        />
-      ))}
+      {globais.map((r) => {
+        const proprio = doProduto.get(r.chave);
+        return (
+          <RegraCard
+            key={r.chave}
+            chave={r.chave}
+            valorInicial={proprio?.valor ?? r.valor}
+            ajuda={r.descricao_ajuda}
+            mostrarOrigem={!!ofertaId}
+            proprio={!!proprio}
+            onSalvar={salvar}
+            onVoltarAoPadrao={() => voltarAoPadrao(r.chave)}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -680,23 +735,46 @@ function RegraCard({
   chave,
   valorInicial,
   ajuda,
+  mostrarOrigem,
+  proprio,
   onSalvar,
+  onVoltarAoPadrao,
 }: {
   chave: string;
   valorInicial: string;
   ajuda: string;
+  mostrarOrigem: boolean;
+  proprio: boolean;
   onSalvar: (chave: string, valor: string) => void;
+  onVoltarAoPadrao: () => void;
 }) {
   const [valor, setValor] = useState(valorInicial);
   useEffect(() => setValor(valorInicial), [valorInicial]);
   return (
     <div className="card-cx space-y-3 p-5">
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Label className="text-primary">{chave}</Label>
-        <p className="text-xs text-muted-foreground">{ajuda}</p>
+        {mostrarOrigem &&
+          (proprio ? (
+            <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+              Personalizado deste produto
+            </span>
+          ) : (
+            <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+              Padrão
+            </span>
+          ))}
       </div>
+      <p className="text-xs text-muted-foreground">{ajuda}</p>
       <Textarea rows={7} value={valor} onChange={(e) => setValor(e.target.value)} />
-      <Button onClick={() => onSalvar(chave, valor)}>Salvar</Button>
+      <div className="flex items-center gap-2">
+        <Button onClick={() => onSalvar(chave, valor)}>Salvar</Button>
+        {mostrarOrigem && proprio && (
+          <Button variant="ghost" size="sm" onClick={onVoltarAoPadrao}>
+            Voltar ao padrão
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
