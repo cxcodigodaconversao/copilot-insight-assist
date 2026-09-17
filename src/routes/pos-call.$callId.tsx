@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Copy, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +66,7 @@ type CallResultado = {
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
-type CamposCall = Parameters<ReturnType<typeof supabase.from<"calls">>["update"]>[0];
+type CamposCall = Database["public"]["Tables"]["calls"]["Update"];
 
 function useSalvarResultado(callId: string) {
   const qc = useQueryClient();
