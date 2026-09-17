@@ -180,7 +180,7 @@ Nome: Lead de teste
 Origem: teste no painel
 O que já sabemos: (simulação do líder para calibrar o cérebro)
 
-VENDEDOR: (teste) (closer)
+VENDEDOR: (teste) (${data.tipo})
 OBJETIVO DESTA CALL: calibrar as respostas do copiloto
 TEMPO DECORRIDO: 5 min
 
