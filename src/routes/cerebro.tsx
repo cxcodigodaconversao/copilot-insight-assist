@@ -827,9 +827,11 @@ function Teste() {
                 </p>
               </div>
               <div className="rounded-md border border-border bg-secondary p-3">
-                <Label className="text-muted-foreground">Etapa SPIN</Label>
+                <Label className="text-muted-foreground">
+                  {tipo === "sdr" ? "Etapa da qualificação" : "Etapa SPIN"}
+                </Label>
                 <p className="mt-1 text-sm font-semibold capitalize text-foreground">
-                  {formatarRotulo(saida.etapa_spin)}
+                  {formatarRotulo(tipo === "sdr" ? saida.etapa_qualificacao : saida.etapa_spin)}
                 </p>
               </div>
               <div className="rounded-md border border-border bg-secondary p-3">
@@ -839,6 +841,23 @@ function Teste() {
                 </p>
               </div>
             </div>
+
+            {tipo === "sdr" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-border bg-secondary p-3">
+                  <Label className="text-muted-foreground">Pontuação da qualificação</Label>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {saida.pontuacao_qualificacao ?? "Não informada"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border bg-secondary p-3">
+                  <Label className="text-muted-foreground">Resultado sugerido</Label>
+                  <p className="mt-1 text-sm font-semibold capitalize text-info">
+                    {formatarRotulo(saida.resultado_sugerido)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-primary/20 bg-primary/5 p-4">
               <div>
