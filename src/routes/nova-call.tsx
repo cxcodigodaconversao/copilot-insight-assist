@@ -138,7 +138,7 @@ function NovaCall() {
   return (
     <AppShell>
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl">Nova call</h1>
+        <h1 className="text-2xl">Nova call (Closer)</h1>
         <Dialog open={ajudaAberto} onOpenChange={setAjudaAberto}>
           <DialogTrigger asChild>
             <Button type="button" variant="outline" size="sm">
@@ -293,41 +293,54 @@ function NovaCall() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="closer">Closer</Label>
-              <select
-                id="closer"
-                value={form.closer_id}
-                onChange={(e) => setForm({ ...form, closer_id: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">—</option>
-                {(pessoas ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome}
-                  </option>
-                ))}
-              </select>
-              {papel === "lider" && (
-                <p className="text-xs text-muted-foreground">
-                  Para incluir alguém, convide em Cérebro CX → Cadastros.
-                </p>
-              )}
+              <div className="flex gap-2">
+                <select
+                  id="closer"
+                  value={form.closer_nome}
+                  onChange={(e) => setForm({ ...form, closer_nome: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">—</option>
+                  {nome && !(closers ?? []).some((c) => c.nome === nome) && (
+                    <option value={nome}>{nome}</option>
+                  )}
+                  {(closers ?? []).map((p) => (
+                    <option key={p.id} value={p.nome}>
+                      {p.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="closers_cadastro"
+                  titulo="Closer"
+                  onCriado={(i) => setForm((f) => ({ ...f, closer_nome: i.nome }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sdr">SDR</Label>
-              <select
-                id="sdr"
-                value={form.sdr_id}
-                onChange={(e) => setForm({ ...form, sdr_id: e.target.value })}
-                className={selectClass}
-              >
-                <option value="">—</option>
-                {(pessoas ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="sdr">SDR que agendou</Label>
+              <div className="flex gap-2">
+                <select
+                  id="sdr"
+                  value={form.sdr_nome}
+                  onChange={(e) => setForm({ ...form, sdr_nome: e.target.value })}
+                  className={selectClass}
+                >
+                  <option value="">—</option>
+                  {(sdrs ?? []).map((p) => (
+                    <option key={p.id} value={p.nome}>
+                      {p.nome}
+                    </option>
+                  ))}
+                </select>
+                <NovoCadastroRapido
+                  tabela="sdrs_cadastro"
+                  titulo="SDR"
+                  onCriado={(i) => setForm((f) => ({ ...f, sdr_nome: i.nome }))}
+                />
+              </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="funil">Funil</Label>
               <div className="flex gap-2">
@@ -436,20 +449,25 @@ function NovaCall() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tipo">Tipo</Label>
+            <Label htmlFor="origem-ligacao">Ligação de origem (SDR)</Label>
             <select
-              id="tipo"
-              value={form.tipo}
-              onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+              id="origem-ligacao"
+              value={form.call_origem_id}
+              onChange={(e) => setForm({ ...form, call_origem_id: e.target.value })}
               className={selectClass}
             >
-              <option value="closer">Closer</option>
-              <option value="sdr">SDR</option>
+              <option value="">Nenhuma</option>
+              {(ligacoesSdr ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nome_lead} — {new Date(l.iniciada_em).toLocaleDateString("pt-BR")}
+                </option>
+              ))}
             </select>
-            {papel && papel !== "lider" && (
-              <p className="text-xs text-muted-foreground">Seu perfil de acesso: {papel}</p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Vincule a ligação do SDR que agendou esta reunião.
+            </p>
           </div>
+
         </section>
 
         <Button type="submit" size="lg" disabled={salvando}>
