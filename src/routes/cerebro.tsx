@@ -902,16 +902,18 @@ function formatarRotulo(valor?: string) {
   return rotulos[valor] ?? valor.replaceAll("_", " ");
 }
 
-function Teste() {
+function Teste({ ofertaIdFixa }: { ofertaIdFixa: string | null }) {
   const chamarTeste = useServerFn(testarCerebro);
-  const [ofertaId, setOfertaId] = useState("");
+  const [ofertaIdLivre, setOfertaId] = useState("");
+  const ofertaId = ofertaIdFixa ?? ofertaIdLivre;
   const [tipo, setTipo] = useState<"closer" | "sdr">("closer");
   const [texto, setTexto] = useState("Achei caro, preciso pensar melhor.");
   const [saida, setSaida] = useState<RespostaTeste | null>(null);
   const [rodando, setRodando] = useState(false);
 
   const { data: ofertas } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas-lista"],
+    enabled: !ofertaIdFixa,
     queryFn: async () => (await supabase.from("ofertas").select("id, nome").order("nome")).data,
   });
 
