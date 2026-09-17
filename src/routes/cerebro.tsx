@@ -663,6 +663,9 @@ type RespostaTeste = {
   leitura?: string;
   perfil_disc?: { tipo?: string; confianca?: number };
   etapa_spin?: string;
+  etapa_qualificacao?: string;
+  pontuacao_qualificacao?: number;
+  resultado_sugerido?: string;
   temperatura?: string;
   sinal?: string;
   proxima_pergunta?: string;
@@ -694,6 +697,18 @@ function formatarRotulo(valor?: string) {
     duvida_produto: "Dúvida sobre o produto",
     desvio: "Desvio de assunto",
     nenhum: "Nenhum",
+    abertura: "Abertura",
+    diagnostico: "Diagnóstico",
+    pontuacao: "Pontuação",
+    agendamento: "Agendamento",
+    encerramento: "Encerramento",
+    objecao_agenda: "Objeção de agenda",
+    lead_desqualificado: "Lead desqualificado",
+    sinal_agendamento: "Sinal de agendamento",
+    duvida_fora_do_escopo: "Dúvida fora do escopo",
+    seguir_qualificando: "Seguir qualificando",
+    agendar_agora: "Agendar agora",
+    desqualificar: "Desqualificar",
   };
   return rotulos[valor] ?? valor.replaceAll("_", " ");
 }
@@ -701,6 +716,7 @@ function formatarRotulo(valor?: string) {
 function Teste() {
   const chamarTeste = useServerFn(testarCerebro);
   const [ofertaId, setOfertaId] = useState("");
+  const [tipo, setTipo] = useState<"closer" | "sdr">("closer");
   const [texto, setTexto] = useState("Achei caro, preciso pensar melhor.");
   const [saida, setSaida] = useState<RespostaTeste | null>(null);
   const [rodando, setRodando] = useState(false);
@@ -713,7 +729,7 @@ function Teste() {
   async function rodar() {
     setRodando(true);
     try {
-      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto } });
+      const r = await chamarTeste({ data: { ofertaId: ofertaId || null, fala: texto, tipo } });
       setSaida(r.resposta as RespostaTeste);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "O teste falhou.");
@@ -725,6 +741,22 @@ function Teste() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="card-cx space-y-4 p-5">
+        <div className="space-y-2">
+          <Label>Tipo de call</Label>
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as "closer" | "sdr")}
+            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+          >
+            <option value="closer">Closer (negociação)</option>
+            <option value="sdr">SDR (qualificação)</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {tipo === "sdr"
+              ? "Usa as perguntas e critérios de qualificação cadastrados."
+              : "Usa a oferta e as quebras de objeção cadastradas."}
+          </p>
+        </div>
         <div className="space-y-2">
           <Label>Oferta</Label>
           <select
@@ -795,9 +827,11 @@ function Teste() {
                 </p>
               </div>
               <div className="rounded-md border border-border bg-secondary p-3">
-                <Label className="text-muted-foreground">Etapa SPIN</Label>
+                <Label className="text-muted-foreground">
+                  {tipo === "sdr" ? "Etapa da qualificação" : "Etapa SPIN"}
+                </Label>
                 <p className="mt-1 text-sm font-semibold capitalize text-foreground">
-                  {formatarRotulo(saida.etapa_spin)}
+                  {formatarRotulo(tipo === "sdr" ? saida.etapa_qualificacao : saida.etapa_spin)}
                 </p>
               </div>
               <div className="rounded-md border border-border bg-secondary p-3">
@@ -807,6 +841,23 @@ function Teste() {
                 </p>
               </div>
             </div>
+
+            {tipo === "sdr" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-border bg-secondary p-3">
+                  <Label className="text-muted-foreground">Pontuação da qualificação</Label>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {saida.pontuacao_qualificacao ?? "Não informada"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border bg-secondary p-3">
+                  <Label className="text-muted-foreground">Resultado sugerido</Label>
+                  <p className="mt-1 text-sm font-semibold capitalize text-info">
+                    {formatarRotulo(saida.resultado_sugerido)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-primary/20 bg-primary/5 p-4">
               <div>

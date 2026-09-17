@@ -33,6 +33,9 @@ type Sugestao = {
   leitura?: string;
   perfil_disc?: { tipo?: string; confianca?: number };
   etapa_spin?: string;
+  etapa_qualificacao?: string;
+  pontuacao_qualificacao?: number;
+  resultado_sugerido?: string;
   temperatura?: string;
   sinal?: string;
   proxima_pergunta?: string;
@@ -292,9 +295,17 @@ function CallAoVivo() {
                   {sugestao.perfil_disc?.confianca != null &&
                     ` · ${Math.round(sugestao.perfil_disc.confianca * 100)}%`}
                 </Chip>
-                <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
+                {call?.tipo === "sdr" ? (
+                  <>
+                    <Chip>Etapa {(sugestao.etapa_qualificacao ?? "—").replaceAll("_", " ")}</Chip>
+                    <Chip>Pontuação {sugestao.pontuacao_qualificacao ?? "—"}</Chip>
+                    <Chip>{(sugestao.resultado_sugerido ?? "—").replaceAll("_", " ")}</Chip>
+                  </>
+                ) : (
+                  <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
+                )}
                 <Chip>{sugestao.temperatura ?? "—"}</Chip>
-                <Chip>{sugestao.sinal ?? "nenhum"}</Chip>
+                <Chip>{(sugestao.sinal ?? "nenhum").replaceAll("_", " ")}</Chip>
                 {pensando && <Chip>analisando…</Chip>}
               </div>
             </div>

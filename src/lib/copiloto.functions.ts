@@ -13,6 +13,7 @@ const SugestaoInput = z.object({
 const TesteInput = z.object({
   ofertaId: z.string().uuid().nullable(),
   fala: z.string().min(1),
+  tipo: z.enum(["closer", "sdr"]).default("closer"),
 });
 
 const ResumoInput = z.object({ callId: z.string().uuid() });
@@ -84,7 +85,7 @@ ${ultimas.map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.t
 ÚLTIMA FALA DO CLIENTE
 ${data.texto}`;
 
-    const system = montarSystemPrompt(ctx);
+    const system = montarSystemPrompt(ctx, call.tipo === "sdr" ? "sdr" : "closer");
     const model = ctx.config["modelo_claude"] || "claude-sonnet-4-6";
     const maxTokens = Number(ctx.config["max_tokens"] ?? 600);
 
@@ -166,7 +167,7 @@ export const testarCerebro = createServerFn({ method: "POST" })
     );
     const inicio = Date.now();
     const ctx = await carregarCerebro(context.supabase, data.ofertaId);
-    const system = montarSystemPrompt(ctx);
+    const system = montarSystemPrompt(ctx, data.tipo);
     const texto = await chamarClaude({
       system,
       model: ctx.config["modelo_claude"] || "claude-sonnet-4-6",
@@ -179,7 +180,7 @@ Nome: Lead de teste
 Origem: teste no painel
 O que já sabemos: (simulação do líder para calibrar o cérebro)
 
-VENDEDOR: (teste) (closer)
+VENDEDOR: (teste) (${data.tipo})
 OBJETIVO DESTA CALL: calibrar as respostas do copiloto
 TEMPO DECORRIDO: 5 min
 
