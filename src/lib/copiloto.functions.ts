@@ -167,7 +167,7 @@ export const testarCerebro = createServerFn({ method: "POST" })
     );
     const inicio = Date.now();
     const ctx = await carregarCerebro(context.supabase, data.ofertaId);
-    const system = montarSystemPrompt(ctx);
+    const system = montarSystemPrompt(ctx, data.tipo);
     const texto = await chamarClaude({
       system,
       model: ctx.config["modelo_claude"] || "claude-sonnet-4-6",
