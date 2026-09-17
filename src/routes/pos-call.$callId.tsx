@@ -48,8 +48,11 @@ function Bloco({ titulo, itens }: { titulo: string; itens?: string[] | undefined
 
 type CallResultado = {
   id: string;
+  tipo: string;
   status_reuniao: string;
   resultado: string;
+  resultado_sdr: string | null;
+  call_origem_id: string | null;
   valor_vendido: number;
   valor_coletado: number;
   valor_pendente: number;
@@ -65,11 +68,29 @@ function BlocoResultado({ call }: { call: CallResultado }) {
   const [r, setR] = useState({
     status_reuniao: call.status_reuniao,
     resultado: call.resultado,
+    resultado_sdr: call.resultado_sdr ?? "",
+    call_origem_id: call.call_origem_id ?? "",
     valor_vendido: String(call.valor_vendido ?? 0),
     valor_coletado: String(call.valor_coletado ?? 0),
     valor_pendente: String(call.valor_pendente ?? 0),
     forma_pagamento: call.forma_pagamento ?? "",
     observacoes: call.observacoes ?? "",
+  });
+
+  // Calls de SDR disponíveis para vincular como origem (em calls de closer).
+  const { data: callsSdr } = useQuery({
+    queryKey: ["calls-sdr-origem"],
+    enabled: call.tipo !== "sdr",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("calls")
+        .select("id, nome_lead, data_reuniao_agendada, iniciada_em")
+        .eq("tipo", "sdr")
+        .order("iniciada_em", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   // Pendente = vendido - coletado, ajustável à mão depois.
