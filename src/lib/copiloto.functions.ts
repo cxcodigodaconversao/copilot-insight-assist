@@ -13,6 +13,7 @@ const SugestaoInput = z.object({
 const TesteInput = z.object({
   ofertaId: z.string().uuid().nullable(),
   fala: z.string().min(1),
+  tipo: z.enum(["closer", "sdr"]).default("closer"),
 });
 
 const ResumoInput = z.object({ callId: z.string().uuid() });
