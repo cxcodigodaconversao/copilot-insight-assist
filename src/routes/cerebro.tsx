@@ -40,8 +40,96 @@ const CATEGORIAS = [
   "outra",
 ] as const;
 
+function SeletorProduto({
+  onEscolher,
+  ehAdm,
+}: {
+  onEscolher: (v: string | "geral") => void;
+  ehAdm: boolean;
+}) {
+  const [clienteId, setClienteId] = useState("");
+  const { data: clientes } = useQuery({
+    queryKey: ["clientes-cerebro"],
+    queryFn: async () =>
+      (await supabase.from("clientes").select("id, nome").eq("ativo", true).order("nome")).data ??
+      [],
+  });
+  const { data: ofertas } = useQuery({
+    queryKey: ["ofertas-cerebro"],
+    queryFn: async () =>
+      (await supabase.from("ofertas").select("id, nome, cliente_id, ativo").order("nome")).data ??
+      [],
+  });
+
+  const lista = (ofertas ?? []).filter((o) => !clienteId || o.cliente_id === clienteId);
+
+  return (
+    <div className="space-y-6">
+      <div className="card-cx space-y-4 p-6">
+        <div>
+          <h2 className="text-lg">Escolha o produto</h2>
+          <p className="text-sm text-muted-foreground">
+            Cada produto tem a sua própria inteligência: oferta, objeções, regras e qualificação
+            separadas.
+          </p>
+        </div>
+        <div className="max-w-sm space-y-2">
+          <Label>Cliente</Label>
+          <select
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+          >
+            <option value="">Todos os clientes</option>
+            {(clientes ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {lista.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onEscolher(o.id)}
+              className="rounded-md border border-border bg-secondary/40 p-4 text-left text-sm transition hover:border-primary/50 hover:bg-secondary"
+            >
+              <span className="font-medium text-foreground">{o.nome}</span>
+              {!o.ativo && <span className="ml-2 text-xs text-muted-foreground">(inativo)</span>}
+            </button>
+          ))}
+          {lista.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum produto cadastrado.</p>
+          )}
+        </div>
+      </div>
+      <div className="card-cx flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <h2 className="text-base">Padrão geral</h2>
+          <p className="text-sm text-muted-foreground">
+            Base herdada por todos os produtos, mais os perfis DISC, cadastros e configurações.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => onEscolher("geral")} disabled={!ehAdm && false}>
+          Abrir padrão geral
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Cerebro() {
   const { ehAdm, podeVerTudo, carregando } = useAuth();
+  const [selecao, setSelecao] = useState<string | "geral" | null>(null);
+
+  const { data: oferta } = useQuery({
+    queryKey: ["oferta-cerebro", selecao],
+    enabled: !!selecao && selecao !== "geral",
+    queryFn: async () =>
+      (await supabase.from("ofertas").select("id, nome").eq("id", selecao!).maybeSingle()).data,
+  });
 
   if (carregando) return <AppShell>Carregando…</AppShell>;
   if (!podeVerTudo)
@@ -53,95 +141,112 @@ function Cerebro() {
       </AppShell>
     );
 
+  if (!selecao)
+    return (
+      <AppShell>
+        <h1 className="mb-6 text-2xl">
+          Cérebro <span className="text-primary">CX</span>
+        </h1>
+        <SeletorProduto onEscolher={setSelecao} ehAdm={ehAdm} />
+      </AppShell>
+    );
+
+  const geral = selecao === "geral";
+  const ofertaId = geral ? null : selecao;
+
   return (
     <AppShell>
-      <h1 className="mb-6 text-2xl">
-        Cérebro <span className="text-primary">CX</span>
-      </h1>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl">
+          Cérebro <span className="text-primary">CX</span>
+        </h1>
+        <span className="rounded-md border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary">
+          {geral ? "Padrão geral" : (oferta?.nome ?? "Produto")}
+        </span>
+        <Button variant="ghost" size="sm" onClick={() => setSelecao(null)}>
+          Trocar produto
+        </Button>
+      </div>
       {!ehAdm && (
         <div className="mb-6 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
           Você está no modo somente leitura. Apenas o administrador pode alterar estes conteúdos.
         </div>
       )}
-      <Tabs defaultValue="ofertas">
+      <Tabs defaultValue={geral ? "regras" : "ofertas"}>
         <TabsList className="mb-6 flex-wrap">
-          <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
+          {!geral && <TabsTrigger value="ofertas">Oferta</TabsTrigger>}
           <TabsTrigger value="objecoes">Quebras de objeção</TabsTrigger>
-          <TabsTrigger value="disc">Perfis DISC</TabsTrigger>
           <TabsTrigger value="regras">Regras do copiloto</TabsTrigger>
-          <TabsTrigger value="cadastros">Cadastros</TabsTrigger>
           <TabsTrigger value="qualificacao">Qualificação</TabsTrigger>
-          <TabsTrigger value="config">Configurações</TabsTrigger>
+          {geral && <TabsTrigger value="disc">Perfis DISC</TabsTrigger>}
+          {geral && <TabsTrigger value="cadastros">Cadastros</TabsTrigger>}
+          {geral && <TabsTrigger value="config">Configurações</TabsTrigger>}
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
-        <TabsContent value="ofertas">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Ofertas />
-          </fieldset>
-        </TabsContent>
+        {!geral && (
+          <TabsContent value="ofertas">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Ofertas ofertaId={ofertaId} />
+            </fieldset>
+          </TabsContent>
+        )}
         <TabsContent value="objecoes">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Objecoes />
-          </fieldset>
-        </TabsContent>
-        <TabsContent value="disc">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Disc />
+            <Objecoes ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
         <TabsContent value="regras">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Regras />
-          </fieldset>
-        </TabsContent>
-        <TabsContent value="cadastros">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Cadastros />
+            <Regras ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
         <TabsContent value="qualificacao">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Qualificacao />
+            <Qualificacao ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
-        <TabsContent value="config">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Config />
-          </fieldset>
-        </TabsContent>
+        {geral && (
+          <TabsContent value="disc">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Disc />
+            </fieldset>
+          </TabsContent>
+        )}
+        {geral && (
+          <TabsContent value="cadastros">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Cadastros />
+            </fieldset>
+          </TabsContent>
+        )}
+        {geral && (
+          <TabsContent value="config">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Config />
+            </fieldset>
+          </TabsContent>
+        )}
         <TabsContent value="teste">
-          <Teste />
+          <Teste ofertaIdFixa={ofertaId} />
         </TabsContent>
       </Tabs>
     </AppShell>
   );
 }
 
-function Ofertas() {
-  const qc = useQueryClient();
+function Ofertas({ ofertaId }: { ofertaId: string | null }) {
   const { data } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas", ofertaId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("ofertas").select("*").order("nome");
+      const q = supabase.from("ofertas").select("*").order("nome");
+      const { data, error } = ofertaId ? await q.eq("id", ofertaId) : await q;
       if (error) throw error;
       return data;
     },
   });
 
-  async function criar() {
-    const { error } = await supabase.from("ofertas").insert({ nome: "Nova oferta" });
-    if (error) {
-      toast.error("Não foi possível criar a oferta.");
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["ofertas"] });
-  }
-
   return (
     <div className="space-y-4">
-      <Button onClick={criar}>
-        <Plus className="size-4" /> Nova oferta
-      </Button>
       {(data ?? []).map((o) => (
         <OfertaCard key={o.id} oferta={o} />
       ))}
@@ -268,13 +373,13 @@ type Objecao = {
   ordem: number;
 };
 
-function Objecoes() {
+function Objecoes({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const { data: ofertas } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas-lista"],
     queryFn: async () => (await supabase.from("ofertas").select("id, nome").order("nome")).data,
   });
-  const { data } = useQuery({
+  const { data: todas } = useQuery({
     queryKey: ["objecoes"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -287,8 +392,14 @@ function Objecoes() {
     },
   });
 
+  const data = (todas ?? []).filter((o) =>
+    ofertaId ? o.oferta_id === null || o.oferta_id === ofertaId : o.oferta_id === null,
+  );
+
   async function criar(categoria: string) {
-    const { error } = await supabase.from("objecoes").insert({ categoria, ordem: 100 });
+    const { error } = await supabase
+      .from("objecoes")
+      .insert({ categoria, ordem: 100, oferta_id: ofertaId });
     if (error) {
       toast.error("Não foi possível criar.");
       return;
@@ -539,34 +650,89 @@ function DiscCard({ perfil, onSalvo }: { perfil: Perfil; onSalvo: () => void }) 
   );
 }
 
-function Regras() {
+type Regra = {
+  id: string;
+  chave: string;
+  valor: string;
+  descricao_ajuda: string;
+  oferta_id: string | null;
+};
+
+function Regras({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["regras_copiloto"],
-    queryFn: async () => (await supabase.from("regras_copiloto").select("*").order("chave")).data,
+    queryFn: async () =>
+      ((await supabase.from("regras_copiloto").select("*").order("chave")).data ?? []) as Regra[],
   });
 
+  const globais = (data ?? []).filter((r) => r.oferta_id === null);
+  const doProduto = new Map(
+    (data ?? []).filter((r) => ofertaId && r.oferta_id === ofertaId).map((r) => [r.chave, r]),
+  );
+
+  function recarregar() {
+    qc.invalidateQueries({ queryKey: ["regras_copiloto"] });
+  }
+
   async function salvar(chave: string, valor: string) {
-    const { error } = await supabase.from("regras_copiloto").update({ valor }).eq("chave", chave);
-    if (error) {
-      toast.error("Não foi possível salvar.");
-      return;
+    if (ofertaId) {
+      const existente = doProduto.get(chave);
+      const base = globais.find((g) => g.chave === chave);
+      const { error } = existente
+        ? await supabase.from("regras_copiloto").update({ valor }).eq("id", existente.id)
+        : await supabase.from("regras_copiloto").insert({
+            chave,
+            valor,
+            descricao_ajuda: base?.descricao_ajuda ?? "",
+            oferta_id: ofertaId,
+          });
+      if (error) {
+        toast.error("Não foi possível salvar.");
+        return;
+      }
+    } else {
+      const base = globais.find((g) => g.chave === chave);
+      if (!base) return;
+      const { error } = await supabase.from("regras_copiloto").update({ valor }).eq("id", base.id);
+      if (error) {
+        toast.error("Não foi possível salvar.");
+        return;
+      }
     }
     toast.success("Regra salva.");
-    qc.invalidateQueries({ queryKey: ["regras_copiloto"] });
+    recarregar();
+  }
+
+  async function voltarAoPadrao(chave: string) {
+    const existente = doProduto.get(chave);
+    if (!existente) return;
+    const { error } = await supabase.from("regras_copiloto").delete().eq("id", existente.id);
+    if (error) {
+      toast.error("Não foi possível restaurar.");
+      return;
+    }
+    toast.success("Regra voltou ao padrão.");
+    recarregar();
   }
 
   return (
     <div className="space-y-4">
-      {(data ?? []).map((r) => (
-        <RegraCard
-          key={r.chave}
-          chave={r.chave}
-          valorInicial={r.valor}
-          ajuda={r.descricao_ajuda}
-          onSalvar={salvar}
-        />
-      ))}
+      {globais.map((r) => {
+        const proprio = doProduto.get(r.chave);
+        return (
+          <RegraCard
+            key={r.chave}
+            chave={r.chave}
+            valorInicial={proprio?.valor ?? r.valor}
+            ajuda={r.descricao_ajuda}
+            mostrarOrigem={!!ofertaId}
+            proprio={!!proprio}
+            onSalvar={salvar}
+            onVoltarAoPadrao={() => voltarAoPadrao(r.chave)}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -575,23 +741,46 @@ function RegraCard({
   chave,
   valorInicial,
   ajuda,
+  mostrarOrigem,
+  proprio,
   onSalvar,
+  onVoltarAoPadrao,
 }: {
   chave: string;
   valorInicial: string;
   ajuda: string;
+  mostrarOrigem: boolean;
+  proprio: boolean;
   onSalvar: (chave: string, valor: string) => void;
+  onVoltarAoPadrao: () => void;
 }) {
   const [valor, setValor] = useState(valorInicial);
   useEffect(() => setValor(valorInicial), [valorInicial]);
   return (
     <div className="card-cx space-y-3 p-5">
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Label className="text-primary">{chave}</Label>
-        <p className="text-xs text-muted-foreground">{ajuda}</p>
+        {mostrarOrigem &&
+          (proprio ? (
+            <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+              Personalizado deste produto
+            </span>
+          ) : (
+            <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+              Padrão
+            </span>
+          ))}
       </div>
+      <p className="text-xs text-muted-foreground">{ajuda}</p>
       <Textarea rows={7} value={valor} onChange={(e) => setValor(e.target.value)} />
-      <Button onClick={() => onSalvar(chave, valor)}>Salvar</Button>
+      <div className="flex items-center gap-2">
+        <Button onClick={() => onSalvar(chave, valor)}>Salvar</Button>
+        {mostrarOrigem && proprio && (
+          <Button variant="ghost" size="sm" onClick={onVoltarAoPadrao}>
+            Voltar ao padrão
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -713,16 +902,18 @@ function formatarRotulo(valor?: string) {
   return rotulos[valor] ?? valor.replaceAll("_", " ");
 }
 
-function Teste() {
+function Teste({ ofertaIdFixa }: { ofertaIdFixa: string | null }) {
   const chamarTeste = useServerFn(testarCerebro);
-  const [ofertaId, setOfertaId] = useState("");
+  const [ofertaIdLivre, setOfertaId] = useState("");
+  const ofertaId = ofertaIdFixa ?? ofertaIdLivre;
   const [tipo, setTipo] = useState<"closer" | "sdr">("closer");
   const [texto, setTexto] = useState("Achei caro, preciso pensar melhor.");
   const [saida, setSaida] = useState<RespostaTeste | null>(null);
   const [rodando, setRodando] = useState(false);
 
   const { data: ofertas } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas-lista"],
+    enabled: !ofertaIdFixa,
     queryFn: async () => (await supabase.from("ofertas").select("id, nome").order("nome")).data,
   });
 
@@ -757,21 +948,23 @@ function Teste() {
               : "Usa a oferta e as quebras de objeção cadastradas."}
           </p>
         </div>
-        <div className="space-y-2">
-          <Label>Oferta</Label>
-          <select
-            value={ofertaId}
-            onChange={(e) => setOfertaId(e.target.value)}
-            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
-          >
-            <option value="">Sem oferta</option>
-            {(ofertas ?? []).map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!ofertaIdFixa && (
+          <div className="space-y-2">
+            <Label>Oferta</Label>
+            <select
+              value={ofertaIdLivre}
+              onChange={(e) => setOfertaId(e.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+            >
+              <option value="">Sem oferta</option>
+              {(ofertas ?? []).map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-2">
           <Label>Fala do cliente</Label>
           <Textarea rows={4} value={texto} onChange={(e) => setTexto(e.target.value)} />
