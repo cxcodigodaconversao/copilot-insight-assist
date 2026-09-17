@@ -48,8 +48,11 @@ function Bloco({ titulo, itens }: { titulo: string; itens?: string[] | undefined
 
 type CallResultado = {
   id: string;
+  tipo: string;
   status_reuniao: string;
   resultado: string;
+  resultado_sdr: string | null;
+  call_origem_id: string | null;
   valor_vendido: number;
   valor_coletado: number;
   valor_pendente: number;
@@ -65,11 +68,29 @@ function BlocoResultado({ call }: { call: CallResultado }) {
   const [r, setR] = useState({
     status_reuniao: call.status_reuniao,
     resultado: call.resultado,
+    resultado_sdr: call.resultado_sdr ?? "",
+    call_origem_id: call.call_origem_id ?? "",
     valor_vendido: String(call.valor_vendido ?? 0),
     valor_coletado: String(call.valor_coletado ?? 0),
     valor_pendente: String(call.valor_pendente ?? 0),
     forma_pagamento: call.forma_pagamento ?? "",
     observacoes: call.observacoes ?? "",
+  });
+
+  // Calls de SDR disponíveis para vincular como origem (em calls de closer).
+  const { data: callsSdr } = useQuery({
+    queryKey: ["calls-sdr-origem"],
+    enabled: call.tipo !== "sdr",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("calls")
+        .select("id, nome_lead, data_reuniao_agendada, iniciada_em")
+        .eq("tipo", "sdr")
+        .order("iniciada_em", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   // Pendente = vendido - coletado, ajustável à mão depois.
@@ -85,6 +106,8 @@ function BlocoResultado({ call }: { call: CallResultado }) {
       .update({
         status_reuniao: r.status_reuniao,
         resultado: r.resultado,
+        resultado_sdr: call.tipo === "sdr" ? r.resultado_sdr || null : null,
+        call_origem_id: call.tipo !== "sdr" ? r.call_origem_id || null : null,
         valor_vendido: Number(r.valor_vendido || 0),
         valor_coletado: Number(r.valor_coletado || 0),
         valor_pendente: Number(r.valor_pendente || 0),
@@ -134,6 +157,41 @@ function BlocoResultado({ call }: { call: CallResultado }) {
             <option value="follow_up">Follow-up</option>
           </select>
         </div>
+        {call.tipo === "sdr" ? (
+          <div className="space-y-2">
+            <Label htmlFor="resultado-sdr">Resultado do SDR</Label>
+            <select
+              id="resultado-sdr"
+              value={r.resultado_sdr}
+              onChange={(e) => setR({ ...r, resultado_sdr: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">—</option>
+              <option value="agendado">Agendado</option>
+              <option value="nao_qualificado">Não qualificado</option>
+              <option value="remarcar">Remarcar</option>
+              <option value="sem_resposta">Sem resposta</option>
+            </select>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="call-origem">Call de origem (SDR)</Label>
+            <select
+              id="call-origem"
+              value={r.call_origem_id}
+              onChange={(e) => setR({ ...r, call_origem_id: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">Nenhuma</option>
+              {(callsSdr ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome_lead} —{" "}
+                  {new Date(c.data_reuniao_agendada ?? c.iniciada_em).toLocaleDateString("pt-BR")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="vendido">Valor vendido</Label>
           <Input

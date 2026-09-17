@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       calls: {
         Row: {
+          call_origem_id: string | null
           cliente: string
           closer_id: string | null
           data_reuniao_agendada: string | null
@@ -32,6 +33,7 @@ export type Database = {
           oferta_id: string | null
           origem_lead: string
           resultado: string
+          resultado_sdr: string | null
           resumo_falas_antigas: string | null
           resumo_final: Json | null
           sdr_id: string | null
@@ -45,6 +47,7 @@ export type Database = {
           vendedor_id: string
         }
         Insert: {
+          call_origem_id?: string | null
           cliente?: string
           closer_id?: string | null
           data_reuniao_agendada?: string | null
@@ -61,6 +64,7 @@ export type Database = {
           oferta_id?: string | null
           origem_lead?: string
           resultado?: string
+          resultado_sdr?: string | null
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
           sdr_id?: string | null
@@ -74,6 +78,7 @@ export type Database = {
           vendedor_id: string
         }
         Update: {
+          call_origem_id?: string | null
           cliente?: string
           closer_id?: string | null
           data_reuniao_agendada?: string | null
@@ -90,6 +95,7 @@ export type Database = {
           oferta_id?: string | null
           origem_lead?: string
           resultado?: string
+          resultado_sdr?: string | null
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
           sdr_id?: string | null
@@ -103,6 +109,13 @@ export type Database = {
           vendedor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_call_origem_id_fkey"
+            columns: ["call_origem_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calls_closer_id_fkey"
             columns: ["closer_id"]
@@ -195,6 +208,33 @@ export type Database = {
           nome?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+        }
+        Relationships: []
+      }
+      criterios_qualificacao: {
+        Row: {
+          ativo: boolean
+          como_identificar: string
+          created_at: string
+          criterio: string
+          id: string
+          peso: number
+        }
+        Insert: {
+          ativo?: boolean
+          como_identificar?: string
+          created_at?: string
+          criterio: string
+          id?: string
+          peso?: number
+        }
+        Update: {
+          ativo?: boolean
+          como_identificar?: string
+          created_at?: string
+          criterio?: string
+          id?: string
+          peso?: number
         }
         Relationships: []
       }
@@ -379,6 +419,39 @@ export type Database = {
           evitar?: string
           id?: string
           tipo?: string
+        }
+        Relationships: []
+      }
+      perguntas_qualificacao: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          created_at: string
+          id: string
+          o_que_identificar: string
+          ordem: number
+          pergunta: string
+          pergunta_followup: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          created_at?: string
+          id?: string
+          o_que_identificar?: string
+          ordem?: number
+          pergunta: string
+          pergunta_followup?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          id?: string
+          o_que_identificar?: string
+          ordem?: number
+          pergunta?: string
+          pergunta_followup?: string | null
         }
         Relationships: []
       }
