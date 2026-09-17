@@ -60,6 +60,11 @@ function NovaLigacao() {
     if (nome) setForm((f) => (f.sdr_nome ? f : { ...f, sdr_nome: nome }));
   }, [nome]);
 
+  const clienteSelecionado = (clientes ?? []).find((c) => c.nome === form.cliente);
+  const ofertasFiltradas = clienteSelecionado
+    ? (ofertas ?? []).filter((o) => o.cliente_id === clienteSelecionado.id)
+    : (ofertas ?? []);
+
   async function iniciar(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
@@ -133,11 +138,19 @@ function NovaLigacao() {
                   id="oferta"
                   required
                   value={form.oferta_id}
-                  onChange={(e) => setForm({ ...form, oferta_id: e.target.value })}
+                  onChange={(e) => {
+                    const o = (ofertas ?? []).find((x) => x.id === e.target.value);
+                    const dono = (clientes ?? []).find((c) => c.id === o?.cliente_id);
+                    setForm((f) => ({
+                      ...f,
+                      oferta_id: e.target.value,
+                      cliente: dono ? dono.nome : f.cliente,
+                    }));
+                  }}
                   className={selectClass}
                 >
                   <option value="">Selecione…</option>
-                  {(ofertas ?? []).map((o) => (
+                  {ofertasFiltradas.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nome}
                     </option>
