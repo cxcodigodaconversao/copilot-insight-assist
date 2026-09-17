@@ -55,7 +55,7 @@ export function useOfertasAtivas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ofertas")
-        .select("id, nome")
+        .select("id, nome, cliente_id")
         .eq("ativo", true)
         .order("nome");
       if (error) throw error;
@@ -187,12 +187,13 @@ function ListaCadastro({
 function ListaProdutos() {
   const qc = useQueryClient();
   const [novo, setNovo] = useState("");
+  const clientes = useCadastro("clientes", false).data;
   const { data } = useQuery({
     queryKey: ["ofertas-todas"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ofertas")
-        .select("id, nome, ativo")
+        .select("id, nome, ativo, cliente_id")
         .order("nome");
       if (error) throw error;
       return data ?? [];
