@@ -64,12 +64,15 @@ type CallResultado = {
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
+type CamposCall = Parameters<ReturnType<typeof supabase.from<"calls">>["update"]>[0];
+
 function useSalvarResultado(callId: string) {
   const qc = useQueryClient();
   const [salvando, setSalvando] = useState(false);
-  async function salvar(campos: Record<string, unknown>) {
+  async function salvar(campos: CamposCall) {
     setSalvando(true);
     const { error } = await supabase.from("calls").update(campos).eq("id", callId);
+
     setSalvando(false);
     if (error) {
       toast.error("Não foi possível salvar o resultado.");
