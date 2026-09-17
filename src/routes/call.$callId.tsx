@@ -84,6 +84,22 @@ function CallAoVivo() {
     },
   });
 
+  const ehSdr = call?.tipo === "sdr";
+
+  const { data: perguntas } = useQuery({
+    queryKey: ["perguntas-qualificacao-ativas"],
+    enabled: ehSdr,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("perguntas_qualificacao")
+        .select("id, categoria, pergunta")
+        .eq("ativo", true)
+        .order("ordem");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: config } = useQuery({
     queryKey: ["config_api"],
     queryFn: async () => {
@@ -91,6 +107,7 @@ function CallAoVivo() {
       return Object.fromEntries((data ?? []).map((c) => [c.chave, c.valor]));
     },
   });
+
 
   const onParcial = useCallback((falante: Falante, texto: string) => {
     setLinhas((prev) => {
