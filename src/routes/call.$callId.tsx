@@ -204,9 +204,13 @@ function CallAoVivo() {
     <AppShell>
       <div className="card-cx mb-4 flex flex-wrap items-center gap-4 p-4">
         <div>
+          <p className="text-[10px] uppercase tracking-widest text-primary">
+            {ehSdr ? "Ligação de qualificação (SDR)" : "Call de negociação (Closer)"}
+          </p>
           <p className="font-display text-lg">{call?.nome_lead ?? "Call"}</p>
           <p className="text-xs text-muted-foreground">{call?.ofertas?.nome ?? ""}</p>
         </div>
+
         <span className="rounded-md bg-secondary px-3 py-1 font-mono text-lg text-primary">
           {mm}:{ss}
         </span>
