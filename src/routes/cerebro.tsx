@@ -40,8 +40,96 @@ const CATEGORIAS = [
   "outra",
 ] as const;
 
+function SeletorProduto({
+  onEscolher,
+  ehAdm,
+}: {
+  onEscolher: (v: string | "geral") => void;
+  ehAdm: boolean;
+}) {
+  const [clienteId, setClienteId] = useState("");
+  const { data: clientes } = useQuery({
+    queryKey: ["clientes-cerebro"],
+    queryFn: async () =>
+      (await supabase.from("clientes").select("id, nome").eq("ativo", true).order("nome")).data ??
+      [],
+  });
+  const { data: ofertas } = useQuery({
+    queryKey: ["ofertas-cerebro"],
+    queryFn: async () =>
+      (await supabase.from("ofertas").select("id, nome, cliente_id, ativo").order("nome")).data ??
+      [],
+  });
+
+  const lista = (ofertas ?? []).filter((o) => !clienteId || o.cliente_id === clienteId);
+
+  return (
+    <div className="space-y-6">
+      <div className="card-cx space-y-4 p-6">
+        <div>
+          <h2 className="text-lg">Escolha o produto</h2>
+          <p className="text-sm text-muted-foreground">
+            Cada produto tem a sua própria inteligência: oferta, objeções, regras e qualificação
+            separadas.
+          </p>
+        </div>
+        <div className="max-w-sm space-y-2">
+          <Label>Cliente</Label>
+          <select
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+          >
+            <option value="">Todos os clientes</option>
+            {(clientes ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {lista.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onEscolher(o.id)}
+              className="rounded-md border border-border bg-secondary/40 p-4 text-left text-sm transition hover:border-primary/50 hover:bg-secondary"
+            >
+              <span className="font-medium text-foreground">{o.nome}</span>
+              {!o.ativo && <span className="ml-2 text-xs text-muted-foreground">(inativo)</span>}
+            </button>
+          ))}
+          {lista.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum produto cadastrado.</p>
+          )}
+        </div>
+      </div>
+      <div className="card-cx flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <h2 className="text-base">Padrão geral</h2>
+          <p className="text-sm text-muted-foreground">
+            Base herdada por todos os produtos, mais os perfis DISC, cadastros e configurações.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => onEscolher("geral")} disabled={!ehAdm && false}>
+          Abrir padrão geral
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Cerebro() {
   const { ehAdm, podeVerTudo, carregando } = useAuth();
+  const [selecao, setSelecao] = useState<string | "geral" | null>(null);
+
+  const { data: oferta } = useQuery({
+    queryKey: ["oferta-cerebro", selecao],
+    enabled: !!selecao && selecao !== "geral",
+    queryFn: async () =>
+      (await supabase.from("ofertas").select("id, nome").eq("id", selecao!).maybeSingle()).data,
+  });
 
   if (carregando) return <AppShell>Carregando…</AppShell>;
   if (!podeVerTudo)
@@ -53,64 +141,93 @@ function Cerebro() {
       </AppShell>
     );
 
+  if (!selecao)
+    return (
+      <AppShell>
+        <h1 className="mb-6 text-2xl">
+          Cérebro <span className="text-primary">CX</span>
+        </h1>
+        <SeletorProduto onEscolher={setSelecao} ehAdm={ehAdm} />
+      </AppShell>
+    );
+
+  const geral = selecao === "geral";
+  const ofertaId = geral ? null : selecao;
+
   return (
     <AppShell>
-      <h1 className="mb-6 text-2xl">
-        Cérebro <span className="text-primary">CX</span>
-      </h1>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl">
+          Cérebro <span className="text-primary">CX</span>
+        </h1>
+        <span className="rounded-md border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary">
+          {geral ? "Padrão geral" : (oferta?.nome ?? "Produto")}
+        </span>
+        <Button variant="ghost" size="sm" onClick={() => setSelecao(null)}>
+          Trocar produto
+        </Button>
+      </div>
       {!ehAdm && (
         <div className="mb-6 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
           Você está no modo somente leitura. Apenas o administrador pode alterar estes conteúdos.
         </div>
       )}
-      <Tabs defaultValue="ofertas">
+      <Tabs defaultValue={geral ? "regras" : "ofertas"}>
         <TabsList className="mb-6 flex-wrap">
-          <TabsTrigger value="ofertas">Ofertas</TabsTrigger>
+          {!geral && <TabsTrigger value="ofertas">Oferta</TabsTrigger>}
           <TabsTrigger value="objecoes">Quebras de objeção</TabsTrigger>
-          <TabsTrigger value="disc">Perfis DISC</TabsTrigger>
           <TabsTrigger value="regras">Regras do copiloto</TabsTrigger>
-          <TabsTrigger value="cadastros">Cadastros</TabsTrigger>
           <TabsTrigger value="qualificacao">Qualificação</TabsTrigger>
-          <TabsTrigger value="config">Configurações</TabsTrigger>
+          {geral && <TabsTrigger value="disc">Perfis DISC</TabsTrigger>}
+          {geral && <TabsTrigger value="cadastros">Cadastros</TabsTrigger>}
+          {geral && <TabsTrigger value="config">Configurações</TabsTrigger>}
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
-        <TabsContent value="ofertas">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Ofertas />
-          </fieldset>
-        </TabsContent>
+        {!geral && (
+          <TabsContent value="ofertas">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Ofertas ofertaId={ofertaId} />
+            </fieldset>
+          </TabsContent>
+        )}
         <TabsContent value="objecoes">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Objecoes />
-          </fieldset>
-        </TabsContent>
-        <TabsContent value="disc">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Disc />
+            <Objecoes ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
         <TabsContent value="regras">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Regras />
-          </fieldset>
-        </TabsContent>
-        <TabsContent value="cadastros">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Cadastros />
+            <Regras ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
         <TabsContent value="qualificacao">
           <fieldset disabled={!ehAdm} className="min-w-0">
-            <Qualificacao />
+            <Qualificacao ofertaId={ofertaId} />
           </fieldset>
         </TabsContent>
-        <TabsContent value="config">
-          <fieldset disabled={!ehAdm} className="min-w-0">
-            <Config />
-          </fieldset>
-        </TabsContent>
+        {geral && (
+          <TabsContent value="disc">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Disc />
+            </fieldset>
+          </TabsContent>
+        )}
+        {geral && (
+          <TabsContent value="cadastros">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Cadastros />
+            </fieldset>
+          </TabsContent>
+        )}
+        {geral && (
+          <TabsContent value="config">
+            <fieldset disabled={!ehAdm} className="min-w-0">
+              <Config />
+            </fieldset>
+          </TabsContent>
+        )}
         <TabsContent value="teste">
-          <Teste />
+          <Teste ofertaIdFixa={ofertaId} />
         </TabsContent>
       </Tabs>
     </AppShell>
