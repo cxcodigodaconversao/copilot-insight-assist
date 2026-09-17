@@ -19,6 +19,7 @@ export type Database = {
           call_origem_id: string | null
           cliente: string
           closer_id: string | null
+          closer_nome: string
           data_reuniao_agendada: string | null
           email_lead: string
           encerrada_em: string | null
@@ -37,6 +38,7 @@ export type Database = {
           resumo_falas_antigas: string | null
           resumo_final: Json | null
           sdr_id: string | null
+          sdr_nome: string
           status_reuniao: string
           telefone_lead: string
           time: string
@@ -50,6 +52,7 @@ export type Database = {
           call_origem_id?: string | null
           cliente?: string
           closer_id?: string | null
+          closer_nome?: string
           data_reuniao_agendada?: string | null
           email_lead?: string
           encerrada_em?: string | null
@@ -68,6 +71,7 @@ export type Database = {
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
           sdr_id?: string | null
+          sdr_nome?: string
           status_reuniao?: string
           telefone_lead?: string
           time?: string
@@ -81,6 +85,7 @@ export type Database = {
           call_origem_id?: string | null
           cliente?: string
           closer_id?: string | null
+          closer_nome?: string
           data_reuniao_agendada?: string | null
           email_lead?: string
           encerrada_em?: string | null
@@ -99,6 +104,7 @@ export type Database = {
           resumo_falas_antigas?: string | null
           resumo_final?: Json | null
           sdr_id?: string | null
+          sdr_nome?: string
           status_reuniao?: string
           telefone_lead?: string
           time?: string
@@ -140,6 +146,30 @@ export type Database = {
         ]
       }
       clientes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
+      }
+      closers_cadastro: {
         Row: {
           ativo: boolean
           created_at: string
@@ -488,6 +518,30 @@ export type Database = {
           chave?: string
           descricao_ajuda?: string
           valor?: string
+        }
+        Relationships: []
+      }
+      sdrs_cadastro: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
         }
         Relationships: []
       }
