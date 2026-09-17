@@ -697,6 +697,18 @@ function formatarRotulo(valor?: string) {
     duvida_produto: "Dúvida sobre o produto",
     desvio: "Desvio de assunto",
     nenhum: "Nenhum",
+    abertura: "Abertura",
+    diagnostico: "Diagnóstico",
+    pontuacao: "Pontuação",
+    agendamento: "Agendamento",
+    encerramento: "Encerramento",
+    objecao_agenda: "Objeção de agenda",
+    lead_desqualificado: "Lead desqualificado",
+    sinal_agendamento: "Sinal de agendamento",
+    duvida_fora_do_escopo: "Dúvida fora do escopo",
+    seguir_qualificando: "Seguir qualificando",
+    agendar_agora: "Agendar agora",
+    desqualificar: "Desqualificar",
   };
   return rotulos[valor] ?? valor.replaceAll("_", " ");
 }
