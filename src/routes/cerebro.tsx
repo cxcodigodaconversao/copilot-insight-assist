@@ -742,6 +742,22 @@ function Teste() {
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="card-cx space-y-4 p-5">
         <div className="space-y-2">
+          <Label>Tipo de call</Label>
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as "closer" | "sdr")}
+            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+          >
+            <option value="closer">Closer (negociação)</option>
+            <option value="sdr">SDR (qualificação)</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {tipo === "sdr"
+              ? "Usa as perguntas e critérios de qualificação cadastrados."
+              : "Usa a oferta e as quebras de objeção cadastradas."}
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label>Oferta</Label>
           <select
             value={ofertaId}
