@@ -84,6 +84,22 @@ function CallAoVivo() {
     },
   });
 
+  const ehSdr = call?.tipo === "sdr";
+
+  const { data: perguntas } = useQuery({
+    queryKey: ["perguntas-qualificacao-ativas"],
+    enabled: ehSdr,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("perguntas_qualificacao")
+        .select("id, categoria, pergunta")
+        .eq("ativo", true)
+        .order("ordem");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: config } = useQuery({
     queryKey: ["config_api"],
     queryFn: async () => {
@@ -91,6 +107,7 @@ function CallAoVivo() {
       return Object.fromEntries((data ?? []).map((c) => [c.chave, c.valor]));
     },
   });
+
 
   const onParcial = useCallback((falante: Falante, texto: string) => {
     setLinhas((prev) => {
@@ -187,9 +204,13 @@ function CallAoVivo() {
     <AppShell>
       <div className="card-cx mb-4 flex flex-wrap items-center gap-4 p-4">
         <div>
+          <p className="text-[10px] uppercase tracking-widest text-primary">
+            {ehSdr ? "Ligação de qualificação (SDR)" : "Call de negociação (Closer)"}
+          </p>
           <p className="font-display text-lg">{call?.nome_lead ?? "Call"}</p>
           <p className="text-xs text-muted-foreground">{call?.ofertas?.nome ?? ""}</p>
         </div>
+
         <span className="rounded-md bg-secondary px-3 py-1 font-mono text-lg text-primary">
           {mm}:{ss}
         </span>
@@ -266,7 +287,22 @@ function CallAoVivo() {
             ))}
             <div ref={fimRef} />
           </div>
+          {ehSdr && !!perguntas?.length && (
+            <div className="mt-3 max-h-40 overflow-y-auto border-t border-border pt-3">
+              <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                Roteiro de qualificação
+              </p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {perguntas.map((p) => (
+                  <li key={p.id}>
+                    <span className="text-primary">[{p.categoria}]</span> {p.pergunta}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
+
 
         <div className="card-cx flex h-[70vh] flex-col p-6">
           {sugestao?.alerta && (

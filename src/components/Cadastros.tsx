@@ -8,14 +8,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export type TabelaCadastro = "times" | "origens" | "funis" | "clientes";
+export type TabelaCadastro =
+  | "times"
+  | "origens"
+  | "funis"
+  | "clientes"
+  | "closers_cadastro"
+  | "sdrs_cadastro";
 
 export const CADASTROS: Array<{ tabela: TabelaCadastro; titulo: string; ajuda: string }> = [
   { tabela: "clientes", titulo: "Clientes", ajuda: "Clientes/empresas donas da oferta." },
   { tabela: "times", titulo: "Times", ajuda: "Times comerciais responsáveis pelas calls." },
   { tabela: "funis", titulo: "Funis", ajuda: "Funis de captação." },
   { tabela: "origens", titulo: "Origens", ajuda: "De onde o lead veio." },
+  {
+    tabela: "closers_cadastro",
+    titulo: "Closers",
+    ajuda: "Nomes que aparecem no campo Closer da nova call.",
+  },
+  {
+    tabela: "sdrs_cadastro",
+    titulo: "SDRs",
+    ajuda: "Nomes que aparecem no campo SDR das ligações.",
+  },
 ];
+
 
 type Item = { id: string; nome: string; ativo: boolean; ordem: number };
 

@@ -1,14 +1,17 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Brain, Headphones, List, LogOut, Plus } from "lucide-react";
+import { Brain, Headphones, List, LogOut, Phone, PhoneCall, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 const itens = [
-  { to: "/calls", label: "Calls", icon: List },
+  { to: "/ligacoes", label: "Ligações (SDR)", icon: Phone },
+  { to: "/nova-ligacao", label: "Nova ligação", icon: PhoneCall },
+  { to: "/calls", label: "Calls (Closer)", icon: List },
   { to: "/nova-call", label: "Nova call", icon: Plus },
   { to: "/cerebro", label: "Cérebro CX", icon: Brain, somenteLider: true },
 ];
+
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { session, carregando, papel, podeVerTudo, nome, sair } = useAuth();
