@@ -948,21 +948,23 @@ function Teste({ ofertaIdFixa }: { ofertaIdFixa: string | null }) {
               : "Usa a oferta e as quebras de objeção cadastradas."}
           </p>
         </div>
-        <div className="space-y-2">
-          <Label>Oferta</Label>
-          <select
-            value={ofertaId}
-            onChange={(e) => setOfertaId(e.target.value)}
-            className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
-          >
-            <option value="">Sem oferta</option>
-            {(ofertas ?? []).map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!ofertaIdFixa && (
+          <div className="space-y-2">
+            <Label>Oferta</Label>
+            <select
+              value={ofertaIdLivre}
+              onChange={(e) => setOfertaId(e.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-input px-3 text-sm"
+            >
+              <option value="">Sem oferta</option>
+              {(ofertas ?? []).map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-2">
           <Label>Fala do cliente</Label>
           <Textarea rows={4} value={texto} onChange={(e) => setTexto(e.target.value)} />
