@@ -53,12 +53,14 @@ type CallResultado = {
   resultado: string;
   resultado_sdr: string | null;
   call_origem_id: string | null;
+  data_reuniao_agendada: string | null;
   valor_vendido: number;
   valor_coletado: number;
   valor_pendente: number;
   forma_pagamento: string | null;
   observacoes: string;
 };
+
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
