@@ -390,6 +390,312 @@ function Equipe() {
   );
 }
 
+const CATEGORIAS_QUALIFICACAO = [
+  { valor: "momento", rotulo: "Momento" },
+  { valor: "autoridade", rotulo: "Autoridade" },
+  { valor: "dor", rotulo: "Dor" },
+  { valor: "orcamento", rotulo: "Orçamento" },
+  { valor: "fit", rotulo: "Fit" },
+  { valor: "urgencia", rotulo: "Urgência" },
+] as const;
+
+const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
+
+type PerguntaQualificacao = {
+  id: string;
+  categoria: string;
+  pergunta: string;
+  o_que_identificar: string;
+  pergunta_followup: string | null;
+  ativo: boolean;
+  ordem: number;
+};
+
+function PerguntasQualificacao() {
+  const qc = useQueryClient();
+  const [nova, setNova] = useState({ categoria: "momento", pergunta: "" });
+  const { data } = useQuery({
+    queryKey: ["perguntas-qualificacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("perguntas_qualificacao")
+        .select("*")
+        .order("ordem")
+        .order("pergunta");
+      if (error) throw error;
+      return (data ?? []) as PerguntaQualificacao[];
+    },
+  });
+
+  function recarregar() {
+    qc.invalidateQueries({ queryKey: ["perguntas-qualificacao"] });
+  }
+
+  async function criar() {
+    if (!nova.pergunta.trim()) return;
+    const ordem = (data ?? []).length + 1;
+    const { error } = await supabase.from("perguntas_qualificacao").insert({
+      categoria: nova.categoria,
+      pergunta: nova.pergunta.trim(),
+      ordem,
+    });
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
+    setNova({ categoria: "momento", pergunta: "" });
+    recarregar();
+  }
+
+  async function atualizar(id: string, campos: Partial<PerguntaQualificacao>) {
+    const { error } = await supabase.from("perguntas_qualificacao").update(campos).eq("id", id);
+    if (error) toast.error("Não foi possível salvar.");
+    else recarregar();
+  }
+
+  async function remover(id: string) {
+    const { error } = await supabase.from("perguntas_qualificacao").delete().eq("id", id);
+    if (error) toast.error("Não foi possível remover.");
+    else recarregar();
+  }
+
+  return (
+    <div className="card-cx space-y-3 p-5 lg:col-span-2">
+      <div>
+        <h3 className="text-lg">Perguntas de qualificação</h3>
+        <p className="text-xs text-muted-foreground">
+          Perguntas que o SDR faz para qualificar o lead, agrupadas por categoria.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <select
+          value={nova.categoria}
+          onChange={(e) => setNova({ ...nova, categoria: e.target.value })}
+          className={`${selectClass} w-44`}
+        >
+          {CATEGORIAS_QUALIFICACAO.map((c) => (
+            <option key={c.valor} value={c.valor}>
+              {c.rotulo}
+            </option>
+          ))}
+        </select>
+        <Input
+          value={nova.pergunta}
+          placeholder="Adicionar pergunta…"
+          onChange={(e) => setNova({ ...nova, pergunta: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              criar();
+            }
+          }}
+        />
+        <Button type="button" onClick={criar}>
+          <Plus className="size-4" />
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {(data ?? []).map((p) => (
+          <div key={p.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
+            <div className="flex items-center gap-2">
+              <select
+                value={p.categoria}
+                onChange={(e) => atualizar(p.id, { categoria: e.target.value })}
+                className={`${selectClass} w-40`}
+              >
+                {CATEGORIAS_QUALIFICACAO.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.rotulo}
+                  </option>
+                ))}
+              </select>
+              <Input
+                defaultValue={p.pergunta}
+                onBlur={(e) => {
+                  if (e.target.value !== p.pergunta) atualizar(p.id, { pergunta: e.target.value });
+                }}
+              />
+              <Input
+                type="number"
+                defaultValue={p.ordem}
+                className="w-20"
+                onBlur={(e) => {
+                  const v = Number(e.target.value);
+                  if (v !== p.ordem) atualizar(p.id, { ordem: v });
+                }}
+              />
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={p.ativo}
+                  onChange={(e) => atualizar(p.id, { ativo: e.target.checked })}
+                />
+                ativo
+              </label>
+              <Button type="button" variant="ghost" size="icon" onClick={() => remover(p.id)}>
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                defaultValue={p.o_que_identificar}
+                placeholder="O que identificar com a resposta…"
+                onBlur={(e) => {
+                  if (e.target.value !== p.o_que_identificar)
+                    atualizar(p.id, { o_que_identificar: e.target.value });
+                }}
+              />
+              <Input
+                defaultValue={p.pergunta_followup ?? ""}
+                placeholder="Pergunta de follow-up (opcional)…"
+                onBlur={(e) => {
+                  if (e.target.value !== (p.pergunta_followup ?? ""))
+                    atualizar(p.id, { pergunta_followup: e.target.value || null });
+                }}
+              />
+            </div>
+          </div>
+        ))}
+        {!data?.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
+      </div>
+    </div>
+  );
+}
+
+type CriterioQualificacao = {
+  id: string;
+  criterio: string;
+  como_identificar: string;
+  peso: number;
+  ativo: boolean;
+};
+
+function CriteriosQualificacao() {
+  const qc = useQueryClient();
+  const [novo, setNovo] = useState("");
+  const { data } = useQuery({
+    queryKey: ["criterios-qualificacao"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("criterios_qualificacao")
+        .select("*")
+        .order("peso", { ascending: false })
+        .order("criterio");
+      if (error) throw error;
+      return (data ?? []) as CriterioQualificacao[];
+    },
+  });
+
+  function recarregar() {
+    qc.invalidateQueries({ queryKey: ["criterios-qualificacao"] });
+  }
+
+  async function criar() {
+    if (!novo.trim()) return;
+    const { error } = await supabase
+      .from("criterios_qualificacao")
+      .insert({ criterio: novo.trim() });
+    if (error) {
+      toast.error("Não foi possível salvar.");
+      return;
+    }
+    setNovo("");
+    recarregar();
+  }
+
+  async function atualizar(id: string, campos: Partial<CriterioQualificacao>) {
+    const { error } = await supabase.from("criterios_qualificacao").update(campos).eq("id", id);
+    if (error) toast.error("Não foi possível salvar.");
+    else recarregar();
+  }
+
+  async function remover(id: string) {
+    const { error } = await supabase.from("criterios_qualificacao").delete().eq("id", id);
+    if (error) toast.error("Não foi possível remover.");
+    else recarregar();
+  }
+
+  return (
+    <div className="card-cx space-y-3 p-5 lg:col-span-2">
+      <div>
+        <h3 className="text-lg">Critérios de qualificação</h3>
+        <p className="text-xs text-muted-foreground">
+          O que define um lead qualificado. O peso indica a importância de cada critério.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={novo}
+          placeholder="Adicionar critério…"
+          onChange={(e) => setNovo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              criar();
+            }
+          }}
+        />
+        <Button type="button" onClick={criar}>
+          <Plus className="size-4" />
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {(data ?? []).map((c) => (
+          <div key={c.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
+            <div className="flex items-center gap-2">
+              <Input
+                defaultValue={c.criterio}
+                onBlur={(e) => {
+                  if (e.target.value !== c.criterio) atualizar(c.id, { criterio: e.target.value });
+                }}
+              />
+              <Input
+                type="number"
+                defaultValue={c.peso}
+                className="w-20"
+                title="Peso"
+                onBlur={(e) => {
+                  const v = Number(e.target.value);
+                  if (v !== c.peso) atualizar(c.id, { peso: v });
+                }}
+              />
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={c.ativo}
+                  onChange={(e) => atualizar(c.id, { ativo: e.target.checked })}
+                />
+                ativo
+              </label>
+              <Button type="button" variant="ghost" size="icon" onClick={() => remover(c.id)}>
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <Input
+              defaultValue={c.como_identificar}
+              placeholder="Como identificar na conversa…"
+              onBlur={(e) => {
+                if (e.target.value !== c.como_identificar)
+                  atualizar(c.id, { como_identificar: e.target.value });
+              }}
+            />
+          </div>
+        ))}
+        {!data?.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
+      </div>
+    </div>
+  );
+}
+
+export function Qualificacao() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <PerguntasQualificacao />
+      <CriteriosQualificacao />
+    </div>
+  );
+}
+
 export function Cadastros() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
