@@ -373,13 +373,13 @@ type Objecao = {
   ordem: number;
 };
 
-function Objecoes() {
+function Objecoes({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const { data: ofertas } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas-lista"],
     queryFn: async () => (await supabase.from("ofertas").select("id, nome").order("nome")).data,
   });
-  const { data } = useQuery({
+  const { data: todas } = useQuery({
     queryKey: ["objecoes"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -392,8 +392,14 @@ function Objecoes() {
     },
   });
 
+  const data = (todas ?? []).filter((o) =>
+    ofertaId ? o.oferta_id === null || o.oferta_id === ofertaId : o.oferta_id === null,
+  );
+
   async function criar(categoria: string) {
-    const { error } = await supabase.from("objecoes").insert({ categoria, ordem: 100 });
+    const { error } = await supabase
+      .from("objecoes")
+      .insert({ categoria, ordem: 100, oferta_id: ofertaId });
     if (error) {
       toast.error("Não foi possível criar.");
       return;
