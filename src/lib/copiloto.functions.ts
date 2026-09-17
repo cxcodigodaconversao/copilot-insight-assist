@@ -85,7 +85,7 @@ ${ultimas.map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.t
 ÚLTIMA FALA DO CLIENTE
 ${data.texto}`;
 
-    const system = montarSystemPrompt(ctx);
+    const system = montarSystemPrompt(ctx, call.tipo === "sdr" ? "sdr" : "closer");
     const model = ctx.config["modelo_claude"] || "claude-sonnet-4-6";
     const maxTokens = Number(ctx.config["max_tokens"] ?? 600);
 
