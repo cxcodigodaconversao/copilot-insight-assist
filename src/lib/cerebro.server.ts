@@ -22,6 +22,18 @@ export type CerebroContexto = {
   config: Record<string, string>;
 };
 
+type LinhaHeranca = { id: string; oferta_id: string | null; oculto: boolean; base_id: string | null };
+
+// Mescla itens gerais (oferta_id null) com os itens exclusivos do produto.
+// Um item do produto com base_id substitui o item geral correspondente;
+// com oculto = true, apenas remove o item geral daquele produto.
+function mesclarPorProduto<T extends LinhaHeranca>(linhas: T[], ofertaId: string | null): T[] {
+  const doProduto = ofertaId ? linhas.filter((l) => l.oferta_id === ofertaId) : [];
+  const substituidos = new Set(doProduto.map((l) => l.base_id).filter(Boolean) as string[]);
+  const globais = linhas.filter((l) => l.oferta_id === null && !substituidos.has(l.id));
+  return [...globais, ...doProduto.filter((l) => !l.oculto)];
+}
+
 export async function carregarCerebro(supabase: DB, ofertaId: string | null): Promise<CerebroContexto> {
   const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes] =
     await Promise.all([
@@ -48,8 +60,14 @@ export async function carregarCerebro(supabase: DB, ofertaId: string | null): Pr
     (o) => o.oferta_id === null || o.oferta_id === ofertaId,
   );
 
+  // Regras: o valor cadastrado no produto sobrescreve o valor geral da mesma chave.
   const regras: Record<string, string> = {};
-  for (const r of regrasRes.data ?? []) regras[r.chave] = r.valor ?? "";
+  for (const r of regrasRes.data ?? []) if (r.oferta_id === null) regras[r.chave] = r.valor ?? "";
+  if (ofertaId) {
+    for (const r of regrasRes.data ?? [])
+      if (r.oferta_id === ofertaId) regras[r.chave] = r.valor ?? "";
+  }
+
   const config: Record<string, string> = {};
   for (const c of configRes.data ?? []) config[c.chave] = c.valor ?? "";
 
@@ -57,8 +75,8 @@ export async function carregarCerebro(supabase: DB, ofertaId: string | null): Pr
     oferta: (ofertaRes.data as Oferta | null) ?? null,
     objecoes,
     perfis: perfisRes.data ?? [],
-    perguntas: perguntasRes.data ?? [],
-    criterios: criteriosRes.data ?? [],
+    perguntas: mesclarPorProduto(perguntasRes.data ?? [], ofertaId),
+    criterios: mesclarPorProduto(criteriosRes.data ?? [], ofertaId),
     regras,
     config,
   };
