@@ -36,14 +36,15 @@ export const Route = createFileRoute("/nova-call")({
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
 function NovaCall() {
-  const { user, papel } = useAuth();
+  const { user, nome } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     cliente: "",
     oferta_id: "",
     time: "",
-    closer_id: "",
-    sdr_id: "",
+    closer_nome: "",
+    sdr_nome: "",
+    call_origem_id: "",
     funil: "",
     origem_lead: "",
     data_reuniao_agendada: "",
@@ -52,7 +53,6 @@ function NovaCall() {
     email_lead: "",
     notas_crm: "",
     objetivo: "",
-    tipo: "closer",
   });
   const [salvando, setSalvando] = useState(false);
   const [ajudaAberto, setAjudaAberto] = useState(false);
@@ -70,12 +70,18 @@ function NovaCall() {
     },
   });
 
-  const { data: pessoas } = useQuery({
-    queryKey: ["profiles-equipe"],
+  // Ligações de SDR que podem ter gerado esta reunião.
+  const { data: ligacoesSdr } = useQuery({
+    queryKey: ["ligacoes-sdr-origem"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, nome").order("nome");
+      const { data, error } = await supabase
+        .from("calls")
+        .select("id, nome_lead, iniciada_em")
+        .eq("tipo", "sdr")
+        .order("iniciada_em", { ascending: false })
+        .limit(100);
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -83,16 +89,13 @@ function NovaCall() {
   const origens = useCadastro("origens").data;
   const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
+  const closers = useCadastro("closers_cadastro").data;
+  const sdrs = useCadastro("sdrs_cadastro").data;
 
-  // Preenche closer ou SDR com o usuário logado, conforme o tipo escolhido.
+  // O closer da call já vem preenchido com quem está logado.
   useEffect(() => {
-    if (!user) return;
-    setForm((f) =>
-      f.tipo === "sdr"
-        ? { ...f, sdr_id: f.sdr_id || user.id }
-        : { ...f, closer_id: f.closer_id || user.id },
-    );
-  }, [user, form.tipo]);
+    if (nome) setForm((f) => (f.closer_nome ? f : { ...f, closer_nome: nome }));
+  }, [nome]);
 
   async function iniciar(e: React.FormEvent) {
     e.preventDefault();
@@ -102,11 +105,14 @@ function NovaCall() {
       .from("calls")
       .insert({
         vendedor_id: user.id,
+        tipo: "closer",
+        closer_id: user.id,
+        closer_nome: form.closer_nome,
+        sdr_nome: form.sdr_nome,
+        call_origem_id: form.call_origem_id || null,
         oferta_id: form.oferta_id || null,
         cliente: form.cliente,
         time: form.time,
-        closer_id: form.closer_id || null,
-        sdr_id: form.sdr_id || null,
         funil: form.funil,
         origem_lead: form.origem_lead,
         data_reuniao_agendada: form.data_reuniao_agendada
@@ -117,7 +123,6 @@ function NovaCall() {
         email_lead: form.email_lead,
         notas_crm: form.notas_crm,
         objetivo: form.objetivo,
-        tipo: form.tipo,
       })
       .select("id")
       .single();
@@ -128,6 +133,7 @@ function NovaCall() {
     }
     navigate({ to: "/call/$callId", params: { callId: data.id } });
   }
+
 
   return (
     <AppShell>
