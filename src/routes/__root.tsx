@@ -36,29 +36,67 @@ function NotFoundComponent() {
   );
 }
 
+const CHAVE_RECARGA = "cx_recarga_versao";
+
+function ehErroDeVersao(error: Error) {
+  const texto = `${error?.name ?? ""} ${error?.message ?? ""}`.toLowerCase();
+  return (
+    texto.includes("dynamically imported module") ||
+    texto.includes("failed to fetch dynamically") ||
+    texto.includes("loading chunk") ||
+    texto.includes("importing a module script failed") ||
+    texto.includes("chunkloaderror")
+  );
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const [verDetalhes, setVerDetalhes] = useState(false);
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  // Versão nova publicada enquanto a página estava aberta: recarrega uma única vez.
+  useEffect(() => {
+    if (typeof window === "undefined" || !ehErroDeVersao(error)) return;
+    if (sessionStorage.getItem(CHAVE_RECARGA)) return;
+    sessionStorage.setItem(CHAVE_RECARGA, "1");
+    window.location.reload();
+  }, [error]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") sessionStorage.removeItem(CHAVE_RECARGA);
+  }, []);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Esta página não carregou
+      <div className="card-cx w-full max-w-md p-6 text-center">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-secondary glow-gold">
+          <Headphones className="size-6 text-primary" />
+        </div>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
+          Não foi possível carregar o Copiloto CX
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Algo deu errado. Tente novamente ou volte ao início.
+          Recarregue a página. Se continuar assim, me envie os detalhes abaixo.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              if (typeof window !== "undefined") window.location.reload();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+          >
+            Recarregar
+          </button>
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
           >
             Tentar de novo
           </button>
@@ -69,6 +107,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Início
           </a>
         </div>
+        <button
+          onClick={() => setVerDetalhes((v) => !v)}
+          className="mt-4 text-xs text-muted-foreground underline"
+        >
+          {verDetalhes ? "ocultar detalhes" : "ver detalhes"}
+        </button>
+        {verDetalhes && (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-md bg-secondary p-3 text-left text-xs text-muted-foreground">
+            {error?.message ?? "Erro desconhecido"}
+          </pre>
+        )}
       </div>
     </div>
   );
