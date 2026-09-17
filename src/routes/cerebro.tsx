@@ -234,31 +234,19 @@ function Cerebro() {
   );
 }
 
-function Ofertas() {
-  const qc = useQueryClient();
+function Ofertas({ ofertaId }: { ofertaId: string | null }) {
   const { data } = useQuery({
-    queryKey: ["ofertas"],
+    queryKey: ["ofertas", ofertaId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("ofertas").select("*").order("nome");
+      const q = supabase.from("ofertas").select("*").order("nome");
+      const { data, error } = ofertaId ? await q.eq("id", ofertaId) : await q;
       if (error) throw error;
       return data;
     },
   });
 
-  async function criar() {
-    const { error } = await supabase.from("ofertas").insert({ nome: "Nova oferta" });
-    if (error) {
-      toast.error("Não foi possível criar a oferta.");
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["ofertas"] });
-  }
-
   return (
     <div className="space-y-4">
-      <Button onClick={criar}>
-        <Plus className="size-4" /> Nova oferta
-      </Button>
       {(data ?? []).map((o) => (
         <OfertaCard key={o.id} oferta={o} />
       ))}
