@@ -663,6 +663,9 @@ type RespostaTeste = {
   leitura?: string;
   perfil_disc?: { tipo?: string; confianca?: number };
   etapa_spin?: string;
+  etapa_qualificacao?: string;
+  pontuacao_qualificacao?: number;
+  resultado_sugerido?: string;
   temperatura?: string;
   sinal?: string;
   proxima_pergunta?: string;
