@@ -716,6 +716,7 @@ function formatarRotulo(valor?: string) {
 function Teste() {
   const chamarTeste = useServerFn(testarCerebro);
   const [ofertaId, setOfertaId] = useState("");
+  const [tipo, setTipo] = useState<"closer" | "sdr">("closer");
   const [texto, setTexto] = useState("Achei caro, preciso pensar melhor.");
   const [saida, setSaida] = useState<RespostaTeste | null>(null);
   const [rodando, setRodando] = useState(false);
