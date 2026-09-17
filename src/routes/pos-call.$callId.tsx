@@ -64,13 +64,100 @@ type CallResultado = {
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
-function BlocoResultado({ call }: { call: CallResultado }) {
+function useSalvarResultado(callId: string) {
   const qc = useQueryClient();
   const [salvando, setSalvando] = useState(false);
+  async function salvar(campos: Record<string, unknown>) {
+    setSalvando(true);
+    const { error } = await supabase.from("calls").update(campos).eq("id", callId);
+    setSalvando(false);
+    if (error) {
+      toast.error("Não foi possível salvar o resultado.");
+      return;
+    }
+    toast.success("Resultado salvo.");
+    qc.invalidateQueries({ queryKey: ["call-resumo", callId] });
+    qc.invalidateQueries({ queryKey: ["calls"] });
+    qc.invalidateQueries({ queryKey: ["ligacoes-sdr"] });
+  }
+  return { salvar, salvando };
+}
+
+/** Resultado de uma ligação de qualificação (SDR). */
+function ResultadoSdr({ call }: { call: CallResultado }) {
+  const { salvar, salvando } = useSalvarResultado(call.id);
+  const [r, setR] = useState({
+    resultado_sdr: call.resultado_sdr ?? "",
+    data_reuniao_agendada: call.data_reuniao_agendada
+      ? new Date(call.data_reuniao_agendada).toISOString().slice(0, 16)
+      : "",
+    observacoes: call.observacoes ?? "",
+  });
+
+  return (
+    <div className="card-cx mb-4 space-y-4 p-5">
+      <h2 className="text-sm uppercase tracking-widest text-muted-foreground">
+        Resultado da ligação
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="resultado-sdr">Resultado</Label>
+          <select
+            id="resultado-sdr"
+            value={r.resultado_sdr}
+            onChange={(e) => setR({ ...r, resultado_sdr: e.target.value })}
+            className={selectClass}
+          >
+            <option value="">—</option>
+            <option value="agendado">Agendado</option>
+            <option value="nao_qualificado">Não qualificado</option>
+            <option value="remarcar">Remarcar</option>
+            <option value="sem_resposta">Sem resposta</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="agendada-sdr">Reunião agendada para</Label>
+          <Input
+            id="agendada-sdr"
+            type="datetime-local"
+            value={r.data_reuniao_agendada}
+            onChange={(e) => setR({ ...r, data_reuniao_agendada: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="obs-sdr">Observações</Label>
+        <Textarea
+          id="obs-sdr"
+          rows={3}
+          value={r.observacoes}
+          onChange={(e) => setR({ ...r, observacoes: e.target.value })}
+        />
+      </div>
+      <Button
+        disabled={salvando}
+        onClick={() =>
+          salvar({
+            resultado_sdr: r.resultado_sdr || null,
+            data_reuniao_agendada: r.data_reuniao_agendada
+              ? new Date(r.data_reuniao_agendada).toISOString()
+              : null,
+            observacoes: r.observacoes,
+          })
+        }
+      >
+        {salvando ? "Salvando…" : "Salvar resultado"}
+      </Button>
+    </div>
+  );
+}
+
+/** Resultado de uma call de negociação (closer). */
+function ResultadoCloser({ call }: { call: CallResultado }) {
+  const { salvar, salvando } = useSalvarResultado(call.id);
   const [r, setR] = useState({
     status_reuniao: call.status_reuniao,
     resultado: call.resultado,
-    resultado_sdr: call.resultado_sdr ?? "",
     call_origem_id: call.call_origem_id ?? "",
     valor_vendido: String(call.valor_vendido ?? 0),
     valor_coletado: String(call.valor_coletado ?? 0),
@@ -79,14 +166,12 @@ function BlocoResultado({ call }: { call: CallResultado }) {
     observacoes: call.observacoes ?? "",
   });
 
-  // Calls de SDR disponíveis para vincular como origem (em calls de closer).
-  const { data: callsSdr } = useQuery({
-    queryKey: ["calls-sdr-origem"],
-    enabled: call.tipo !== "sdr",
+  const { data: ligacoesSdr } = useQuery({
+    queryKey: ["ligacoes-sdr-origem"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("calls")
-        .select("id, nome_lead, data_reuniao_agendada, iniciada_em")
+        .select("id, nome_lead, iniciada_em")
         .eq("tipo", "sdr")
         .order("iniciada_em", { ascending: false })
         .limit(100);
@@ -100,32 +185,6 @@ function BlocoResultado({ call }: { call: CallResultado }) {
     const pendente = Number(r.valor_vendido || 0) - Number(r.valor_coletado || 0);
     setR((atual) => ({ ...atual, valor_pendente: String(pendente > 0 ? pendente : 0) }));
   }, [r.valor_vendido, r.valor_coletado]);
-
-  async function salvar() {
-    setSalvando(true);
-    const { error } = await supabase
-      .from("calls")
-      .update({
-        status_reuniao: r.status_reuniao,
-        resultado: r.resultado,
-        resultado_sdr: call.tipo === "sdr" ? r.resultado_sdr || null : null,
-        call_origem_id: call.tipo !== "sdr" ? r.call_origem_id || null : null,
-        valor_vendido: Number(r.valor_vendido || 0),
-        valor_coletado: Number(r.valor_coletado || 0),
-        valor_pendente: Number(r.valor_pendente || 0),
-        forma_pagamento: r.forma_pagamento || null,
-        observacoes: r.observacoes,
-      })
-      .eq("id", call.id);
-    setSalvando(false);
-    if (error) {
-      toast.error("Não foi possível salvar o resultado.");
-      return;
-    }
-    toast.success("Resultado salvo.");
-    qc.invalidateQueries({ queryKey: ["call-resumo", call.id] });
-    qc.invalidateQueries({ queryKey: ["calls"] });
-  }
 
   return (
     <div className="card-cx mb-4 space-y-4 p-5">
@@ -159,41 +218,22 @@ function BlocoResultado({ call }: { call: CallResultado }) {
             <option value="follow_up">Follow-up</option>
           </select>
         </div>
-        {call.tipo === "sdr" ? (
-          <div className="space-y-2">
-            <Label htmlFor="resultado-sdr">Resultado do SDR</Label>
-            <select
-              id="resultado-sdr"
-              value={r.resultado_sdr}
-              onChange={(e) => setR({ ...r, resultado_sdr: e.target.value })}
-              className={selectClass}
-            >
-              <option value="">—</option>
-              <option value="agendado">Agendado</option>
-              <option value="nao_qualificado">Não qualificado</option>
-              <option value="remarcar">Remarcar</option>
-              <option value="sem_resposta">Sem resposta</option>
-            </select>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Label htmlFor="call-origem">Call de origem (SDR)</Label>
-            <select
-              id="call-origem"
-              value={r.call_origem_id}
-              onChange={(e) => setR({ ...r, call_origem_id: e.target.value })}
-              className={selectClass}
-            >
-              <option value="">Nenhuma</option>
-              {(callsSdr ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome_lead} —{" "}
-                  {new Date(c.data_reuniao_agendada ?? c.iniciada_em).toLocaleDateString("pt-BR")}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label htmlFor="call-origem">Ligação de origem (SDR)</Label>
+          <select
+            id="call-origem"
+            value={r.call_origem_id}
+            onChange={(e) => setR({ ...r, call_origem_id: e.target.value })}
+            className={selectClass}
+          >
+            <option value="">Nenhuma</option>
+            {(ligacoesSdr ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome_lead} — {new Date(c.iniciada_em).toLocaleDateString("pt-BR")}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="vendido">Valor vendido</Label>
           <Input
@@ -243,12 +283,31 @@ function BlocoResultado({ call }: { call: CallResultado }) {
           onChange={(e) => setR({ ...r, observacoes: e.target.value })}
         />
       </div>
-      <Button onClick={salvar} disabled={salvando}>
+      <Button
+        disabled={salvando}
+        onClick={() =>
+          salvar({
+            status_reuniao: r.status_reuniao,
+            resultado: r.resultado,
+            call_origem_id: r.call_origem_id || null,
+            valor_vendido: Number(r.valor_vendido || 0),
+            valor_coletado: Number(r.valor_coletado || 0),
+            valor_pendente: Number(r.valor_pendente || 0),
+            forma_pagamento: r.forma_pagamento || null,
+            observacoes: r.observacoes,
+          })
+        }
+      >
         {salvando ? "Salvando…" : "Salvar resultado"}
       </Button>
     </div>
   );
 }
+
+function BlocoResultado({ call }: { call: CallResultado }) {
+  return call.tipo === "sdr" ? <ResultadoSdr call={call} /> : <ResultadoCloser call={call} />;
+}
+
 
 function PosCall() {
   const { callId } = Route.useParams();
