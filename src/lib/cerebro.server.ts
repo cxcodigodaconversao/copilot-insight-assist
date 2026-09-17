@@ -7,25 +7,42 @@ type DB = SupabaseClient<Database>;
 export type Oferta = Database["public"]["Tables"]["ofertas"]["Row"];
 export type Objecao = Database["public"]["Tables"]["objecoes"]["Row"];
 export type PerfilDisc = Database["public"]["Tables"]["perfis_disc"]["Row"];
+export type PerguntaQualificacao = Database["public"]["Tables"]["perguntas_qualificacao"]["Row"];
+export type CriterioQualificacao = Database["public"]["Tables"]["criterios_qualificacao"]["Row"];
+
+export type TipoCall = "closer" | "sdr";
 
 export type CerebroContexto = {
   oferta: Oferta | null;
   objecoes: Objecao[];
   perfis: PerfilDisc[];
+  perguntas: PerguntaQualificacao[];
+  criterios: CriterioQualificacao[];
   regras: Record<string, string>;
   config: Record<string, string>;
 };
 
 export async function carregarCerebro(supabase: DB, ofertaId: string | null): Promise<CerebroContexto> {
-  const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes] = await Promise.all([
-    ofertaId
-      ? supabase.from("ofertas").select("*").eq("id", ofertaId).maybeSingle()
-      : Promise.resolve({ data: null, error: null } as const),
-    supabase.from("objecoes").select("*").eq("ativo", true).order("ordem", { ascending: true }),
-    supabase.from("perfis_disc").select("*").order("tipo", { ascending: true }),
-    supabase.from("regras_copiloto").select("*"),
-    supabase.from("config_api").select("*"),
-  ]);
+  const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes] =
+    await Promise.all([
+      ofertaId
+        ? supabase.from("ofertas").select("*").eq("id", ofertaId).maybeSingle()
+        : Promise.resolve({ data: null, error: null } as const),
+      supabase.from("objecoes").select("*").eq("ativo", true).order("ordem", { ascending: true }),
+      supabase.from("perfis_disc").select("*").order("tipo", { ascending: true }),
+      supabase.from("regras_copiloto").select("*"),
+      supabase.from("config_api").select("*"),
+      supabase
+        .from("perguntas_qualificacao")
+        .select("*")
+        .eq("ativo", true)
+        .order("ordem", { ascending: true }),
+      supabase
+        .from("criterios_qualificacao")
+        .select("*")
+        .eq("ativo", true)
+        .order("peso", { ascending: false }),
+    ]);
 
   const objecoes = (objecoesRes.data ?? []).filter(
     (o) => o.oferta_id === null || o.oferta_id === ofertaId,
