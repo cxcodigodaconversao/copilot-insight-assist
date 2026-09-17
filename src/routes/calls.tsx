@@ -260,16 +260,17 @@ function Calls() {
         </select>
         <select value={f.closer} onChange={(e) => setF({ ...f, closer: e.target.value })} className={selectClass}>
           <option value="">Todos os closers</option>
-          {(pessoas ?? []).map((p) => (
-            <option key={p.id} value={p.id}>{p.nome}</option>
+          {(closers ?? []).map((p) => (
+            <option key={p.id} value={p.nome}>{p.nome}</option>
           ))}
         </select>
         <select value={f.sdr} onChange={(e) => setF({ ...f, sdr: e.target.value })} className={selectClass}>
           <option value="">Todos os SDRs</option>
-          {(pessoas ?? []).map((p) => (
-            <option key={p.id} value={p.id}>{p.nome}</option>
+          {(sdrs ?? []).map((p) => (
+            <option key={p.id} value={p.nome}>{p.nome}</option>
           ))}
         </select>
+
         <select value={f.cliente} onChange={(e) => setF({ ...f, cliente: e.target.value })} className={selectClass}>
           <option value="">Todos os clientes</option>
           {(clientes ?? []).map((c) => (
