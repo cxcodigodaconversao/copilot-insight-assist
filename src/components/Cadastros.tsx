@@ -55,7 +55,7 @@ export function useOfertasAtivas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ofertas")
-        .select("id, nome")
+        .select("id, nome, cliente_id")
         .eq("ativo", true)
         .order("nome");
       if (error) throw error;
@@ -187,12 +187,13 @@ function ListaCadastro({
 function ListaProdutos() {
   const qc = useQueryClient();
   const [novo, setNovo] = useState("");
+  const clientes = useCadastro("clientes", false).data;
   const { data } = useQuery({
     queryKey: ["ofertas-todas"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ofertas")
-        .select("id, nome, ativo")
+        .select("id, nome, ativo, cliente_id")
         .order("nome");
       if (error) throw error;
       return data ?? [];
@@ -215,7 +216,10 @@ function ListaProdutos() {
     recarregar();
   }
 
-  async function atualizar(id: string, campos: { nome?: string; ativo?: boolean }) {
+  async function atualizar(
+    id: string,
+    campos: { nome?: string; ativo?: boolean; cliente_id?: string | null },
+  ) {
     const { error } = await supabase.from("ofertas").update(campos).eq("id", id);
     if (error) toast.error("Não foi possível salvar.");
     else recarregar();
@@ -255,6 +259,18 @@ function ListaProdutos() {
                 if (e.target.value !== o.nome) atualizar(o.id, { nome: e.target.value });
               }}
             />
+            <select
+              value={o.cliente_id ?? ""}
+              onChange={(e) => atualizar(o.id, { cliente_id: e.target.value || null })}
+              className="h-10 w-48 rounded-md border border-input bg-input px-2 text-sm"
+            >
+              <option value="">Sem cliente</option>
+              {(clientes ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
             <label className="flex items-center gap-1 text-xs text-muted-foreground">
               <input
                 type="checkbox"

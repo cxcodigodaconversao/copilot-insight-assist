@@ -62,7 +62,7 @@ function NovaCall() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ofertas")
-        .select("id, nome")
+        .select("id, nome, cliente_id")
         .eq("ativo", true)
         .order("nome");
       if (error) throw error;
@@ -91,6 +91,11 @@ function NovaCall() {
   const clientes = useCadastro("clientes").data;
   const closers = useCadastro("closers_cadastro").data;
   const sdrs = useCadastro("sdrs_cadastro").data;
+
+  const clienteSelecionado = (clientes ?? []).find((c) => c.nome === form.cliente);
+  const ofertasFiltradas = clienteSelecionado
+    ? (ofertas ?? []).filter((o) => o.cliente_id === clienteSelecionado.id)
+    : (ofertas ?? []);
 
   // O closer da call já vem preenchido com quem está logado.
   useEffect(() => {
@@ -251,11 +256,19 @@ function NovaCall() {
                   id="oferta"
                   required
                   value={form.oferta_id}
-                  onChange={(e) => setForm({ ...form, oferta_id: e.target.value })}
+                  onChange={(e) => {
+                    const o = (ofertas ?? []).find((x) => x.id === e.target.value);
+                    const dono = (clientes ?? []).find((c) => c.id === o?.cliente_id);
+                    setForm((f) => ({
+                      ...f,
+                      oferta_id: e.target.value,
+                      cliente: dono ? dono.nome : f.cliente,
+                    }));
+                  }}
                   className={selectClass}
                 >
                   <option value="">Selecione…</option>
-                  {(ofertas ?? []).map((o) => (
+                  {ofertasFiltradas.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nome}
                     </option>
