@@ -244,29 +244,53 @@ export type Database = {
       criterios_qualificacao: {
         Row: {
           ativo: boolean
+          base_id: string | null
           como_identificar: string
           created_at: string
           criterio: string
           id: string
+          oculto: boolean
+          oferta_id: string | null
           peso: number
         }
         Insert: {
           ativo?: boolean
+          base_id?: string | null
           como_identificar?: string
           created_at?: string
           criterio: string
           id?: string
+          oculto?: boolean
+          oferta_id?: string | null
           peso?: number
         }
         Update: {
           ativo?: boolean
+          base_id?: string | null
           como_identificar?: string
           created_at?: string
           criterio?: string
           id?: string
+          oculto?: boolean
+          oferta_id?: string | null
           peso?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "criterios_qualificacao_base_id_fkey"
+            columns: ["base_id"]
+            isOneToOne: false
+            referencedRelation: "criterios_qualificacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "criterios_qualificacao_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       falas: {
         Row: {
@@ -466,35 +490,59 @@ export type Database = {
       perguntas_qualificacao: {
         Row: {
           ativo: boolean
+          base_id: string | null
           categoria: string
           created_at: string
           id: string
           o_que_identificar: string
+          oculto: boolean
+          oferta_id: string | null
           ordem: number
           pergunta: string
           pergunta_followup: string | null
         }
         Insert: {
           ativo?: boolean
+          base_id?: string | null
           categoria: string
           created_at?: string
           id?: string
           o_que_identificar?: string
+          oculto?: boolean
+          oferta_id?: string | null
           ordem?: number
           pergunta: string
           pergunta_followup?: string | null
         }
         Update: {
           ativo?: boolean
+          base_id?: string | null
           categoria?: string
           created_at?: string
           id?: string
           o_que_identificar?: string
+          oculto?: boolean
+          oferta_id?: string | null
           ordem?: number
           pergunta?: string
           pergunta_followup?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "perguntas_qualificacao_base_id_fkey"
+            columns: ["base_id"]
+            isOneToOne: false
+            referencedRelation: "perguntas_qualificacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perguntas_qualificacao_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -518,19 +566,33 @@ export type Database = {
         Row: {
           chave: string
           descricao_ajuda: string
+          id: string
+          oferta_id: string | null
           valor: string
         }
         Insert: {
           chave: string
           descricao_ajuda?: string
+          id?: string
+          oferta_id?: string | null
           valor?: string
         }
         Update: {
           chave?: string
           descricao_ajuda?: string
+          id?: string
+          oferta_id?: string | null
           valor?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "regras_copiloto_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sdrs_cadastro: {
         Row: {
