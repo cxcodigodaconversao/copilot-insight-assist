@@ -57,12 +57,81 @@ export async function carregarCerebro(supabase: DB, ofertaId: string | null): Pr
     oferta: (ofertaRes.data as Oferta | null) ?? null,
     objecoes,
     perfis: perfisRes.data ?? [],
+    perguntas: perguntasRes.data ?? [],
+    criterios: criteriosRes.data ?? [],
     regras,
     config,
   };
 }
 
-export function montarSystemPrompt(ctx: CerebroContexto): string {
+function textoPerfis(ctx: CerebroContexto): string {
+  return ctx.perfis
+    .map(
+      (p) =>
+        `Perfil ${p.tipo}\n  Como identificar: ${p.como_identificar}\n  Como conduzir: ${p.como_conduzir}\n  Evitar: ${p.evitar}`,
+    )
+    .join("\n");
+}
+
+function montarSystemPromptSdr(ctx: CerebroContexto): string {
+  const perguntas = ctx.perguntas
+    .map(
+      (p) =>
+        `[${p.categoria}] ${p.pergunta}\n  O que identificar: ${p.o_que_identificar}\n  Se a resposta for vaga: ${p.pergunta_followup ?? ""}`,
+    )
+    .join("\n");
+
+  const criterios = ctx.criterios
+    .map((c) => `${c.criterio} (peso ${c.peso}) — como identificar: ${c.como_identificar}`)
+    .join("\n");
+
+  return `${ctx.regras["persona_sdr"] ?? ""}
+
+Você aplica a etapa de qualificação do método CX — Código da Conversão: leitura comportamental (DISC) e condução por perguntas estratégicas, com um único objetivo final: agendar o diagnóstico com o especialista.
+
+=== REGRAS DE CONDUTA ===
+${ctx.regras["regras_conduta_sdr"] ?? ""}
+
+=== ETAPAS DE QUALIFICAÇÃO ===
+Abertura: gerar rapport rápido e contextualizar por que está ligando.
+Diagnóstico rápido: passar pelas perguntas de qualificação cadastradas, identificando momento, autoridade, dor e urgência.
+Pontuação: cruzar as respostas com os critérios de qualificação.
+Agendamento: se qualificado, conduzir para marcar a call com o especialista, com data e horário fechados na própria ligação.
+Encerramento: se desqualificado, encerrar com respeito, sem insistir.
+
+=== PERGUNTAS DE QUALIFICAÇÃO CADASTRADAS ===
+${perguntas}
+
+=== CRITÉRIOS DE QUALIFICAÇÃO ===
+${criterios}
+
+=== PERFIS DISC ===
+${textoPerfis(ctx)}
+
+=== INSTRUÇÕES ADICIONAIS DO LÍDER ===
+${ctx.regras["instrucoes_livres"] ?? ""}
+
+=== FORMATO DE RESPOSTA ===
+Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
+{
+  "acao": "manter | orientar | alerta",
+  "leitura": "1 frase: o que o lead acabou de revelar",
+  "perfil_disc": {"tipo": "D|I|S|C|indefinido", "confianca": 0.0},
+  "etapa_qualificacao": "abertura | diagnostico | pontuacao | agendamento | encerramento",
+  "temperatura": "frio | morno | quente",
+  "pontuacao_qualificacao": 0,
+  "sinal": "objecao_agenda | lead_desqualificado | sinal_agendamento | duvida_fora_do_escopo | desvio | nenhum",
+  "proxima_pergunta": "a pergunta exata que o SDR deve fazer agora, em linguagem falada",
+  "porque": "1 frase curta",
+  "resultado_sugerido": "seguir_qualificando | agendar_agora | desqualificar",
+  "alerta": "só preencha se o SDR estiver perdendo o lead ou pulando etapa, senão null"
+}
+Quando "acao" for "manter", envie apenas {"acao": "manter"}.
+${ctx.regras["formato_saida_extra"] ?? ""}`;
+}
+
+export function montarSystemPrompt(ctx: CerebroContexto, tipo: TipoCall = "closer"): string {
+  if (tipo === "sdr") return montarSystemPromptSdr(ctx);
   const o = ctx.oferta;
   const objecoes = ctx.objecoes
     .map(
