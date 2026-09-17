@@ -434,8 +434,34 @@ const CATEGORIAS_QUALIFICACAO = [
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
 
-type PerguntaQualificacao = {
+type Heranca = {
   id: string;
+  oferta_id: string | null;
+  oculto: boolean;
+  base_id: string | null;
+};
+
+// Itens gerais (oferta_id null) servem de base; o produto pode personalizar ou ocultar cada um.
+function mesclarHeranca<T extends Heranca>(linhas: T[], ofertaId: string | null) {
+  const doProduto = ofertaId ? linhas.filter((l) => l.oferta_id === ofertaId) : [];
+  const substituidos = new Set(doProduto.map((l) => l.base_id).filter(Boolean) as string[]);
+  const globais = linhas.filter((l) => l.oferta_id === null && !substituidos.has(l.id));
+  return [...globais, ...doProduto];
+}
+
+function Etiqueta({ proprio }: { proprio: boolean }) {
+  return proprio ? (
+    <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+      Personalizado deste produto
+    </span>
+  ) : (
+    <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+      Padrão
+    </span>
+  );
+}
+
+type PerguntaQualificacao = Heranca & {
   categoria: string;
   pergunta: string;
   o_que_identificar: string;
@@ -444,7 +470,7 @@ type PerguntaQualificacao = {
   ordem: number;
 };
 
-function PerguntasQualificacao() {
+function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const [nova, setNova] = useState({ categoria: "momento", pergunta: "" });
   const { data } = useQuery({
@@ -460,17 +486,20 @@ function PerguntasQualificacao() {
     },
   });
 
+  const lista = mesclarHeranca(data ?? [], ofertaId);
+
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["perguntas-qualificacao"] });
   }
 
   async function criar() {
     if (!nova.pergunta.trim()) return;
-    const ordem = (data ?? []).length + 1;
+    const ordem = lista.length + 1;
     const { error } = await supabase.from("perguntas_qualificacao").insert({
       categoria: nova.categoria,
       pergunta: nova.pergunta.trim(),
       ordem,
+      oferta_id: ofertaId,
     });
     if (error) {
       toast.error("Não foi possível salvar.");
@@ -480,15 +509,43 @@ function PerguntasQualificacao() {
     recarregar();
   }
 
-  async function atualizar(id: string, campos: Partial<PerguntaQualificacao>) {
-    const { error } = await supabase.from("perguntas_qualificacao").update(campos).eq("id", id);
+  // Ao editar um item padrão dentro de um produto, cria-se uma cópia exclusiva do produto.
+  async function atualizar(p: PerguntaQualificacao, campos: Partial<PerguntaQualificacao>) {
+    if (ofertaId && p.oferta_id === null) {
+      const { id, ...resto } = p;
+      const { error } = await supabase
+        .from("perguntas_qualificacao")
+        .insert({ ...resto, ...campos, oferta_id: ofertaId, base_id: id, oculto: false });
+      if (error) toast.error("Não foi possível salvar.");
+      else recarregar();
+      return;
+    }
+    const { error } = await supabase
+      .from("perguntas_qualificacao")
+      .update(campos)
+      .eq("id", p.id);
     if (error) toast.error("Não foi possível salvar.");
     else recarregar();
   }
 
-  async function remover(id: string) {
-    const { error } = await supabase.from("perguntas_qualificacao").delete().eq("id", id);
+  async function remover(p: PerguntaQualificacao) {
+    if (ofertaId && p.oferta_id === null) {
+      const { id, ...resto } = p;
+      const { error } = await supabase
+        .from("perguntas_qualificacao")
+        .insert({ ...resto, oferta_id: ofertaId, base_id: id, oculto: true });
+      if (error) toast.error("Não foi possível remover.");
+      else recarregar();
+      return;
+    }
+    const { error } = await supabase.from("perguntas_qualificacao").delete().eq("id", p.id);
     if (error) toast.error("Não foi possível remover.");
+    else recarregar();
+  }
+
+  async function voltarAoPadrao(p: PerguntaQualificacao) {
+    const { error } = await supabase.from("perguntas_qualificacao").delete().eq("id", p.id);
+    if (error) toast.error("Não foi possível restaurar.");
     else recarregar();
   }
 
@@ -528,82 +585,115 @@ function PerguntasQualificacao() {
         </Button>
       </div>
       <div className="space-y-3">
-        {(data ?? []).map((p) => (
-          <div key={p.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
-            <div className="flex items-center gap-2">
-              <select
-                value={p.categoria}
-                onChange={(e) => atualizar(p.id, { categoria: e.target.value })}
-                className={`${selectClass} w-40`}
+        {lista.map((p) =>
+          p.oculto ? (
+            <div
+              key={p.id}
+              className="flex items-center gap-3 rounded-md bg-secondary/20 p-3 text-sm text-muted-foreground"
+            >
+              <span className="line-through">{p.pergunta}</span>
+              <span className="text-xs">removida neste produto</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => voltarAoPadrao(p)}
               >
-                {CATEGORIAS_QUALIFICACAO.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.rotulo}
-                  </option>
-                ))}
-              </select>
-              <Input
-                defaultValue={p.pergunta}
-                onBlur={(e) => {
-                  if (e.target.value !== p.pergunta) atualizar(p.id, { pergunta: e.target.value });
-                }}
-              />
-              <Input
-                type="number"
-                defaultValue={p.ordem}
-                className="w-20"
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v !== p.ordem) atualizar(p.id, { ordem: v });
-                }}
-              />
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={p.ativo}
-                  onChange={(e) => atualizar(p.id, { ativo: e.target.checked })}
-                />
-                ativo
-              </label>
-              <Button type="button" variant="ghost" size="icon" onClick={() => remover(p.id)}>
-                <Trash2 className="size-4" />
+                Restaurar
               </Button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                defaultValue={p.o_que_identificar}
-                placeholder="O que identificar com a resposta…"
-                onBlur={(e) => {
-                  if (e.target.value !== p.o_que_identificar)
-                    atualizar(p.id, { o_que_identificar: e.target.value });
-                }}
-              />
-              <Input
-                defaultValue={p.pergunta_followup ?? ""}
-                placeholder="Pergunta de follow-up (opcional)…"
-                onBlur={(e) => {
-                  if (e.target.value !== (p.pergunta_followup ?? ""))
-                    atualizar(p.id, { pergunta_followup: e.target.value || null });
-                }}
-              />
+          ) : (
+            <div key={p.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
+              {ofertaId && (
+                <div className="flex items-center gap-2">
+                  <Etiqueta proprio={p.oferta_id !== null} />
+                  {p.base_id && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => voltarAoPadrao(p)}
+                    >
+                      Voltar ao padrão
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <select
+                  value={p.categoria}
+                  onChange={(e) => atualizar(p, { categoria: e.target.value })}
+                  className={`${selectClass} w-40`}
+                >
+                  {CATEGORIAS_QUALIFICACAO.map((c) => (
+                    <option key={c.valor} value={c.valor}>
+                      {c.rotulo}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  defaultValue={p.pergunta}
+                  onBlur={(e) => {
+                    if (e.target.value !== p.pergunta) atualizar(p, { pergunta: e.target.value });
+                  }}
+                />
+                <Input
+                  type="number"
+                  defaultValue={p.ordem}
+                  className="w-20"
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (v !== p.ordem) atualizar(p, { ordem: v });
+                  }}
+                />
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={p.ativo}
+                    onChange={(e) => atualizar(p, { ativo: e.target.checked })}
+                  />
+                  ativo
+                </label>
+                <Button type="button" variant="ghost" size="icon" onClick={() => remover(p)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input
+                  defaultValue={p.o_que_identificar}
+                  placeholder="O que identificar com a resposta…"
+                  onBlur={(e) => {
+                    if (e.target.value !== p.o_que_identificar)
+                      atualizar(p, { o_que_identificar: e.target.value });
+                  }}
+                />
+                <Input
+                  defaultValue={p.pergunta_followup ?? ""}
+                  placeholder="Pergunta de follow-up (opcional)…"
+                  onBlur={(e) => {
+                    if (e.target.value !== (p.pergunta_followup ?? ""))
+                      atualizar(p, { pergunta_followup: e.target.value || null });
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        ))}
-        {!data?.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
+          ),
+        )}
+        {!lista.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
       </div>
     </div>
   );
 }
 
-type CriterioQualificacao = {
-  id: string;
+type CriterioQualificacao = Heranca & {
   criterio: string;
   como_identificar: string;
   peso: number;
   ativo: boolean;
 };
 
-function CriteriosQualificacao() {
+function CriteriosQualificacao({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
   const [novo, setNovo] = useState("");
   const { data } = useQuery({
@@ -619,6 +709,8 @@ function CriteriosQualificacao() {
     },
   });
 
+  const lista = mesclarHeranca(data ?? [], ofertaId);
+
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["criterios-qualificacao"] });
   }
@@ -627,7 +719,7 @@ function CriteriosQualificacao() {
     if (!novo.trim()) return;
     const { error } = await supabase
       .from("criterios_qualificacao")
-      .insert({ criterio: novo.trim() });
+      .insert({ criterio: novo.trim(), oferta_id: ofertaId });
     if (error) {
       toast.error("Não foi possível salvar.");
       return;
@@ -636,15 +728,39 @@ function CriteriosQualificacao() {
     recarregar();
   }
 
-  async function atualizar(id: string, campos: Partial<CriterioQualificacao>) {
-    const { error } = await supabase.from("criterios_qualificacao").update(campos).eq("id", id);
+  async function atualizar(c: CriterioQualificacao, campos: Partial<CriterioQualificacao>) {
+    if (ofertaId && c.oferta_id === null) {
+      const { id, ...resto } = c;
+      const { error } = await supabase
+        .from("criterios_qualificacao")
+        .insert({ ...resto, ...campos, oferta_id: ofertaId, base_id: id, oculto: false });
+      if (error) toast.error("Não foi possível salvar.");
+      else recarregar();
+      return;
+    }
+    const { error } = await supabase.from("criterios_qualificacao").update(campos).eq("id", c.id);
     if (error) toast.error("Não foi possível salvar.");
     else recarregar();
   }
 
-  async function remover(id: string) {
-    const { error } = await supabase.from("criterios_qualificacao").delete().eq("id", id);
+  async function remover(c: CriterioQualificacao) {
+    if (ofertaId && c.oferta_id === null) {
+      const { id, ...resto } = c;
+      const { error } = await supabase
+        .from("criterios_qualificacao")
+        .insert({ ...resto, oferta_id: ofertaId, base_id: id, oculto: true });
+      if (error) toast.error("Não foi possível remover.");
+      else recarregar();
+      return;
+    }
+    const { error } = await supabase.from("criterios_qualificacao").delete().eq("id", c.id);
     if (error) toast.error("Não foi possível remover.");
+    else recarregar();
+  }
+
+  async function voltarAoPadrao(c: CriterioQualificacao) {
+    const { error } = await supabase.from("criterios_qualificacao").delete().eq("id", c.id);
+    if (error) toast.error("Não foi possível restaurar.");
     else recarregar();
   }
 
@@ -673,58 +789,92 @@ function CriteriosQualificacao() {
         </Button>
       </div>
       <div className="space-y-3">
-        {(data ?? []).map((c) => (
-          <div key={c.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
-            <div className="flex items-center gap-2">
-              <Input
-                defaultValue={c.criterio}
-                onBlur={(e) => {
-                  if (e.target.value !== c.criterio) atualizar(c.id, { criterio: e.target.value });
-                }}
-              />
-              <Input
-                type="number"
-                defaultValue={c.peso}
-                className="w-20"
-                title="Peso"
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v !== c.peso) atualizar(c.id, { peso: v });
-                }}
-              />
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={c.ativo}
-                  onChange={(e) => atualizar(c.id, { ativo: e.target.checked })}
-                />
-                ativo
-              </label>
-              <Button type="button" variant="ghost" size="icon" onClick={() => remover(c.id)}>
-                <Trash2 className="size-4" />
+        {lista.map((c) =>
+          c.oculto ? (
+            <div
+              key={c.id}
+              className="flex items-center gap-3 rounded-md bg-secondary/20 p-3 text-sm text-muted-foreground"
+            >
+              <span className="line-through">{c.criterio}</span>
+              <span className="text-xs">removido neste produto</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => voltarAoPadrao(c)}
+              >
+                Restaurar
               </Button>
             </div>
-            <Input
-              defaultValue={c.como_identificar}
-              placeholder="Como identificar na conversa…"
-              onBlur={(e) => {
-                if (e.target.value !== c.como_identificar)
-                  atualizar(c.id, { como_identificar: e.target.value });
-              }}
-            />
-          </div>
-        ))}
-        {!data?.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
+          ) : (
+            <div key={c.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
+              {ofertaId && (
+                <div className="flex items-center gap-2">
+                  <Etiqueta proprio={c.oferta_id !== null} />
+                  {c.base_id && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => voltarAoPadrao(c)}
+                    >
+                      Voltar ao padrão
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  defaultValue={c.criterio}
+                  onBlur={(e) => {
+                    if (e.target.value !== c.criterio) atualizar(c, { criterio: e.target.value });
+                  }}
+                />
+                <Input
+                  type="number"
+                  defaultValue={c.peso}
+                  className="w-20"
+                  title="Peso"
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (v !== c.peso) atualizar(c, { peso: v });
+                  }}
+                />
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={c.ativo}
+                    onChange={(e) => atualizar(c, { ativo: e.target.checked })}
+                  />
+                  ativo
+                </label>
+                <Button type="button" variant="ghost" size="icon" onClick={() => remover(c)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+              <Input
+                defaultValue={c.como_identificar}
+                placeholder="Como identificar na conversa…"
+                onBlur={(e) => {
+                  if (e.target.value !== c.como_identificar)
+                    atualizar(c, { como_identificar: e.target.value });
+                }}
+              />
+            </div>
+          ),
+        )}
+        {!lista.length && <p className="text-sm text-muted-foreground">Nada cadastrado ainda.</p>}
       </div>
     </div>
   );
 }
 
-export function Qualificacao() {
+export function Qualificacao({ ofertaId = null }: { ofertaId?: string | null }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <PerguntasQualificacao />
-      <CriteriosQualificacao />
+      <PerguntasQualificacao ofertaId={ofertaId} />
+      <CriteriosQualificacao ofertaId={ofertaId} />
     </div>
   );
 }
