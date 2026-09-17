@@ -157,6 +157,41 @@ function BlocoResultado({ call }: { call: CallResultado }) {
             <option value="follow_up">Follow-up</option>
           </select>
         </div>
+        {call.tipo === "sdr" ? (
+          <div className="space-y-2">
+            <Label htmlFor="resultado-sdr">Resultado do SDR</Label>
+            <select
+              id="resultado-sdr"
+              value={r.resultado_sdr}
+              onChange={(e) => setR({ ...r, resultado_sdr: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">—</option>
+              <option value="agendado">Agendado</option>
+              <option value="nao_qualificado">Não qualificado</option>
+              <option value="remarcar">Remarcar</option>
+              <option value="sem_resposta">Sem resposta</option>
+            </select>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="call-origem">Call de origem (SDR)</Label>
+            <select
+              id="call-origem"
+              value={r.call_origem_id}
+              onChange={(e) => setR({ ...r, call_origem_id: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">Nenhuma</option>
+              {(callsSdr ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome_lead} —{" "}
+                  {new Date(c.data_reuniao_agendada ?? c.iniciada_em).toLocaleDateString("pt-BR")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="vendido">Valor vendido</Label>
           <Input
