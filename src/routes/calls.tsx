@@ -125,35 +125,29 @@ function Calls() {
       const { data, error } = await supabase
         .from("calls")
         .select("*, ofertas(nome)")
+        .neq("tipo", "sdr")
         .order("iniciada_em", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: pessoas } = useQuery({
-    queryKey: ["profiles-equipe"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, nome").order("nome");
-      if (error) throw error;
-      return data;
-    },
-  });
-  const nomePessoa = (id: string | null) =>
-    (pessoas ?? []).find((p) => p.id === id)?.nome ?? "";
-
   const times = useCadastro("times").data;
   const origens = useCadastro("origens").data;
   const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
+  const closers = useCadastro("closers_cadastro").data;
+  const sdrs = useCadastro("sdrs_cadastro").data;
+
 
   const filtradas = useMemo(() => {
     const faixa = intervalo(f.periodo, f.de, f.ate);
     return (calls ?? []).filter((c) => {
       if (busca && !c.nome_lead.toLowerCase().includes(busca.toLowerCase())) return false;
       if (f.time && c.time !== f.time) return false;
-      if (f.closer && c.closer_id !== f.closer) return false;
-      if (f.sdr && c.sdr_id !== f.sdr) return false;
+      if (f.closer && c.closer_nome !== f.closer) return false;
+      if (f.sdr && c.sdr_nome !== f.sdr) return false;
+
       if (f.cliente && c.cliente !== f.cliente) return false;
       if (f.origem && c.origem_lead !== f.origem) return false;
       if (f.produto && c.oferta_id !== f.produto) return false;
@@ -199,8 +193,9 @@ function Calls() {
     const linhas = filtradas.map((c) =>
       [
         c.time,
-        nomePessoa(c.closer_id),
-        nomePessoa(c.sdr_id),
+        c.closer_nome,
+        c.sdr_nome,
+
         c.cliente,
         c.origem_lead,
         c.ofertas?.nome ?? "",
@@ -232,7 +227,10 @@ function Calls() {
   return (
     <AppShell>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-2xl">{podeVerTudo ? "Todas as calls" : "Minhas calls"}</h1>
+        <h1 className="mr-auto text-2xl">
+          {podeVerTudo ? "Todas as calls (Closer)" : "Minhas calls (Closer)"}
+        </h1>
+
         <Button variant="outline" onClick={exportarCsv} disabled={!filtradas.length}>
           <Download className="size-4" /> Exportar CSV
         </Button>
