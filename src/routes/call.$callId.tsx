@@ -287,7 +287,22 @@ function CallAoVivo() {
             ))}
             <div ref={fimRef} />
           </div>
+          {ehSdr && !!perguntas?.length && (
+            <div className="mt-3 max-h-40 overflow-y-auto border-t border-border pt-3">
+              <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+                Roteiro de qualificação
+              </p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {perguntas.map((p) => (
+                  <li key={p.id}>
+                    <span className="text-primary">[{p.categoria}]</span> {p.pergunta}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
+
 
         <div className="card-cx flex h-[70vh] flex-col p-6">
           {sugestao?.alerta && (
