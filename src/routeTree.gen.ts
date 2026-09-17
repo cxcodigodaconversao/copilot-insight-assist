@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as CerebroRouteImport } from './routes/cerebro'
 import { Route as NovaCallRouteImport } from './routes/nova-call'
+import { Route as NovaLigacaoRouteImport } from './routes/nova-ligacao'
 import { Route as CallCallIdRouteImport } from './routes/call.$callId'
 import { Route as PosCallCallIdRouteImport } from './routes/pos-call.$callId'
 
@@ -36,6 +37,11 @@ const NovaCallRoute = NovaCallRouteImport.update({
   path: '/nova-call',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NovaLigacaoRoute = NovaLigacaoRouteImport.update({
+  id: '/nova-ligacao',
+  path: '/nova-ligacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CallCallIdRoute = CallCallIdRouteImport.update({
   id: '/call/$callId',
   path: '/call/$callId',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
   '/nova-call': typeof NovaCallRoute
+  '/nova-ligacao': typeof NovaLigacaoRoute
   '/call/$callId': typeof CallCallIdRoute
   '/pos-call/$callId': typeof PosCallCallIdRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
   '/nova-call': typeof NovaCallRoute
+  '/nova-ligacao': typeof NovaLigacaoRoute
   '/call/$callId': typeof CallCallIdRoute
   '/pos-call/$callId': typeof PosCallCallIdRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
   '/nova-call': typeof NovaCallRoute
+  '/nova-ligacao': typeof NovaLigacaoRoute
   '/call/$callId': typeof CallCallIdRoute
   '/pos-call/$callId': typeof PosCallCallIdRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/calls'
     | '/cerebro'
     | '/nova-call'
+    | '/nova-ligacao'
     | '/call/$callId'
     | '/pos-call/$callId'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/calls'
     | '/cerebro'
     | '/nova-call'
+    | '/nova-ligacao'
     | '/call/$callId'
     | '/pos-call/$callId'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/calls'
     | '/cerebro'
     | '/nova-call'
+    | '/nova-ligacao'
     | '/call/$callId'
     | '/pos-call/$callId'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   CallsRoute: typeof CallsRoute
   CerebroRoute: typeof CerebroRoute
   NovaCallRoute: typeof NovaCallRoute
+  NovaLigacaoRoute: typeof NovaLigacaoRoute
   CallCallIdRoute: typeof CallCallIdRoute
   PosCallCallIdRoute: typeof PosCallCallIdRoute
 }
@@ -138,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NovaCallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nova-ligacao': {
+      id: '/nova-ligacao'
+      path: '/nova-ligacao'
+      fullPath: '/nova-ligacao'
+      preLoaderRoute: typeof NovaLigacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/call/$callId': {
       id: '/call/$callId'
       path: '/call/$callId'
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   CallsRoute: CallsRoute,
   CerebroRoute: CerebroRoute,
   NovaCallRoute: NovaCallRoute,
+  NovaLigacaoRoute: NovaLigacaoRoute,
   CallCallIdRoute: CallCallIdRoute,
   PosCallCallIdRoute: PosCallCallIdRoute,
 }
