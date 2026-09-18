@@ -120,6 +120,7 @@ function Ligacoes() {
     ate: "",
   });
 
+  const qc = useQueryClient();
   const { data: ligacoes, isLoading } = useQuery({
     queryKey: ["ligacoes-sdr"],
     queryFn: async () => {

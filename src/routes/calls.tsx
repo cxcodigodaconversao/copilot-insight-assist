@@ -120,6 +120,7 @@ function Calls() {
     ate: "",
   });
 
+  const qc = useQueryClient();
   const { data: calls, isLoading } = useQuery({
     queryKey: ["calls"],
     queryFn: async () => {
