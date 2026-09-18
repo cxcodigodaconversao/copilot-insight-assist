@@ -197,6 +197,19 @@ function CallAoVivo() {
     return () => clearInterval(t);
   }, [transcricao.ativo]);
 
+  const nivelClienteRef = useRef(0);
+  nivelClienteRef.current = Math.max(nivelClienteRef.current, transcricao.nivelCliente);
+  useEffect(() => {
+    if (!transcricao.ativo) {
+      nivelClienteRef.current = 0;
+      setSemSomDoCliente(false);
+      return;
+    }
+    const t = setTimeout(() => setSemSomDoCliente(nivelClienteRef.current < 0.02), 15000);
+    return () => clearTimeout(t);
+  }, [transcricao.ativo]);
+
+
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [linhas]);
