@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Brain, Headphones, List, LogOut, Phone, PhoneCall, Plus } from "lucide-react";
+import { Brain, Headphones, List, LogOut, Phone, PhoneCall, Plus, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
