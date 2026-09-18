@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCadastro } from "@/components/Cadastros";
+import { ExcluirCall } from "@/components/ExcluirCall";
 
 export const Route = createFileRoute("/ligacoes")({
   head: () => ({
@@ -119,6 +120,7 @@ function Ligacoes() {
     ate: "",
   });
 
+  const qc = useQueryClient();
   const { data: ligacoes, isLoading } = useQuery({
     queryKey: ["ligacoes-sdr"],
     queryFn: async () => {
@@ -362,6 +364,12 @@ function Ligacoes() {
                 {c.encerrada_em ? "encerrada" : "em andamento"}
               </span>
             </span>
+            <ExcluirCall
+              callId={c.id}
+              nomeLead={c.nome_lead}
+              rotulo="ligação"
+              onExcluida={() => void qc.invalidateQueries({ queryKey: ["ligacoes-sdr"] })}
+            />
           </Link>
         ))}
       </div>

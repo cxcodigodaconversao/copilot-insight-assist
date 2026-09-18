@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Copy, Download } from "lucide-react";
@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 import { AppShell } from "@/components/AppShell";
+import { ExcluirCall } from "@/components/ExcluirCall";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -316,6 +317,7 @@ function BlocoResultado({ call }: { call: CallResultado }) {
 
 function PosCall() {
   const { callId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: call, isLoading } = useQuery({
     queryKey: ["call-resumo", callId],
     queryFn: async () => {
@@ -359,6 +361,15 @@ function PosCall() {
         <Button variant="outline" onClick={exportar} disabled={!resumo}>
           <Download className="size-4" /> Exportar JSON
         </Button>
+        {call && (
+          <ExcluirCall
+            callId={callId}
+            nomeLead={call.nome_lead}
+            rotulo={call.tipo === "sdr" ? "ligação" : "call"}
+            comTexto
+            onExcluida={() => void navigate({ to: call.tipo === "sdr" ? "/ligacoes" : "/calls" })}
+          />
+        )}
       </div>
 
       {call && <BlocoResultado call={call as unknown as CallResultado} />}

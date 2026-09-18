@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCadastro } from "@/components/Cadastros";
+import { ExcluirCall } from "@/components/ExcluirCall";
 
 export const Route = createFileRoute("/calls")({
   head: () => ({
@@ -119,6 +120,7 @@ function Calls() {
     ate: "",
   });
 
+  const qc = useQueryClient();
   const { data: calls, isLoading } = useQuery({
     queryKey: ["calls"],
     queryFn: async () => {
@@ -356,6 +358,12 @@ function Calls() {
                   {c.encerrada_em ? "encerrada" : "em andamento"}
                 </span>
               </span>
+              <ExcluirCall
+                callId={c.id}
+                nomeLead={c.nome_lead}
+                rotulo="call"
+                onExcluida={() => void qc.invalidateQueries({ queryKey: ["calls"] })}
+              />
             </Link>
           );
         })}
