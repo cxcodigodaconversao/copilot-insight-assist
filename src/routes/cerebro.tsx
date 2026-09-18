@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Cadastros, Qualificacao } from "@/components/Cadastros";
+import { Qualificacao } from "@/components/Cadastros";
 import { testarCerebro } from "@/lib/copiloto.functions";
 
 export const Route = createFileRoute("/cerebro")({
@@ -179,7 +179,6 @@ function Cerebro() {
           <TabsTrigger value="regras">Regras do copiloto</TabsTrigger>
           <TabsTrigger value="qualificacao">Qualificação</TabsTrigger>
           {geral && <TabsTrigger value="disc">Perfis DISC</TabsTrigger>}
-          {geral && <TabsTrigger value="cadastros">Cadastros</TabsTrigger>}
           {geral && <TabsTrigger value="config">Configurações</TabsTrigger>}
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
@@ -209,13 +208,6 @@ function Cerebro() {
           <TabsContent value="disc">
             <fieldset disabled={!ehAdm} className="min-w-0">
               <Disc />
-            </fieldset>
-          </TabsContent>
-        )}
-        {geral && (
-          <TabsContent value="cadastros">
-            <fieldset disabled={!ehAdm} className="min-w-0">
-              <Cadastros />
             </fieldset>
           </TabsContent>
         )}
