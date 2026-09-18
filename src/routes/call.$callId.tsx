@@ -85,7 +85,11 @@ function CallAoVivo() {
   const [pensando, setPensando] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
   const [segundos, setSegundos] = useState(0);
-  const [mostrarAjuda, setMostrarAjuda] = useState(true);
+  const [falha, setFalha] = useState<string | null>(null);
+  const [comoFunciona, setComoFunciona] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [semSomDoCliente, setSemSomDoCliente] = useState(false);
+
   const fimRef = useRef<HTMLDivElement>(null);
 
   const { data: call } = useQuery({
