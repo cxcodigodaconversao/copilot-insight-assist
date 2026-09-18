@@ -84,7 +84,7 @@ export async function criarCadastro(tabela: TabelaCadastro | "ofertas", nome: st
   return data;
 }
 
-function ListaCadastro({
+export function ListaCadastro({
   tabela,
   titulo,
   ajuda,
@@ -184,7 +184,7 @@ function ListaCadastro({
   );
 }
 
-function ListaProdutos() {
+export function ListaProdutos() {
   const qc = useQueryClient();
   const [novo, setNovo] = useState("");
   const clientes = useCadastro("clientes", false).data;
