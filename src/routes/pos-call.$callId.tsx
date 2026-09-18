@@ -359,6 +359,15 @@ function PosCall() {
         <Button variant="outline" onClick={exportar} disabled={!resumo}>
           <Download className="size-4" /> Exportar JSON
         </Button>
+        {call && (
+          <ExcluirCall
+            callId={callId}
+            nomeLead={call.nome_lead}
+            rotulo={call.tipo === "sdr" ? "ligação" : "call"}
+            comTexto
+            onExcluida={() => void navigate({ to: call.tipo === "sdr" ? "/ligacoes" : "/calls" })}
+          />
+        )}
       </div>
 
       {call && <BlocoResultado call={call as unknown as CallResultado} />}
