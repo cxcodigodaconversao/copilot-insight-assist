@@ -52,6 +52,10 @@ function Bloco({ titulo, itens }: { titulo: string; itens?: string[] | undefined
 type CallResultado = {
   id: string;
   tipo: string;
+  nome_lead: string;
+  telefone_lead: string | null;
+  email_lead: string | null;
+  notas_crm: string | null;
   status_reuniao: string;
   resultado: string;
   resultado_sdr: string | null;
@@ -142,8 +146,12 @@ function ResultadoSdr({ call }: { call: CallResultado }) {
       </div>
       <Button
         disabled={salvando}
-        onClick={() =>
-          salvar({
+        onClick={() => {
+          if (r.resultado_sdr === "agendado" && !call.nome_lead?.trim()) {
+            toast.error("Preencha o nome do lead antes de marcar como agendado.");
+            return;
+          }
+          void salvar({
             resultado_sdr: r.resultado_sdr || null,
             data_reuniao_agendada: r.data_reuniao_agendada
               ? new Date(r.data_reuniao_agendada).toISOString()
@@ -310,6 +318,73 @@ function ResultadoCloser({ call }: { call: CallResultado }) {
   );
 }
 
+/** Dados do lead: preenchidos depois da ligação, não antes de discar. */
+function DadosDoLead({ call }: { call: CallResultado }) {
+  const { salvar, salvando } = useSalvarResultado(call.id);
+  const [d, setD] = useState({
+    nome_lead: call.nome_lead ?? "",
+    telefone_lead: call.telefone_lead ?? "",
+    email_lead: call.email_lead ?? "",
+    notas_crm: call.notas_crm ?? "",
+  });
+
+  return (
+    <div className="card-cx mb-4 space-y-4 p-5">
+      <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Dados do lead</h2>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="lead-nome">Nome</Label>
+          <Input
+            id="lead-nome"
+            value={d.nome_lead}
+            onChange={(e) => setD({ ...d, nome_lead: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lead-tel">Telefone</Label>
+          <Input
+            id="lead-tel"
+            value={d.telefone_lead}
+            onChange={(e) => setD({ ...d, telefone_lead: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lead-email">E-mail</Label>
+          <Input
+            id="lead-email"
+            type="email"
+            value={d.email_lead}
+            onChange={(e) => setD({ ...d, email_lead: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="lead-notas">Anotações</Label>
+        <Textarea
+          id="lead-notas"
+          rows={3}
+          value={d.notas_crm}
+          onChange={(e) => setD({ ...d, notas_crm: e.target.value })}
+        />
+      </div>
+      <Button
+        variant="secondary"
+        disabled={salvando}
+        onClick={() =>
+          salvar({
+            nome_lead: d.nome_lead,
+            telefone_lead: d.telefone_lead,
+            email_lead: d.email_lead,
+            notas_crm: d.notas_crm,
+          })
+        }
+      >
+        {salvando ? "Salvando…" : "Salvar dados do lead"}
+      </Button>
+    </div>
+  );
+}
+
 function BlocoResultado({ call }: { call: CallResultado }) {
   return call.tipo === "sdr" ? <ResultadoSdr call={call} /> : <ResultadoCloser call={call} />;
 }
@@ -352,7 +427,10 @@ function PosCall() {
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
-          <h1 className="text-2xl">{call?.nome_lead ?? "Resumo da call"}</h1>
+          <h1 className="text-2xl">
+            {call?.nome_lead?.trim() ||
+              (call?.tipo === "sdr" ? "Lead sem nome ainda" : "Resumo da call")}
+          </h1>
           <p className="text-sm text-muted-foreground">{call?.ofertas?.nome}</p>
         </div>
         <Button variant="secondary" onClick={copiar} disabled={!resumo}>
@@ -372,6 +450,7 @@ function PosCall() {
         )}
       </div>
 
+      {call && <DadosDoLead call={call as unknown as CallResultado} />}
       {call && <BlocoResultado call={call as unknown as CallResultado} />}
 
       {isLoading && <p className="text-muted-foreground">Carregando…</p>}

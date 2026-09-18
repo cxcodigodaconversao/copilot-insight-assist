@@ -1,0 +1,1 @@
+INSERT INTO public.config_api (chave, valor) VALUES ('modelo_claude_rapido', 'claude-haiku-4-5-20251001') ON CONFLICT (chave) DO NOTHING;
