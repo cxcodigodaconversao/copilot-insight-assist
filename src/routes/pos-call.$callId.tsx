@@ -157,8 +157,8 @@ function ResultadoSdr({ call }: { call: CallResultado }) {
               ? new Date(r.data_reuniao_agendada).toISOString()
               : null,
             observacoes: r.observacoes,
-          })
-        }
+          });
+        }}
       >
         {salvando ? "Salvando…" : "Salvar resultado"}
       </Button>
