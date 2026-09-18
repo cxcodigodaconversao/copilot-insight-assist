@@ -186,14 +186,33 @@ function CallAoVivo() {
   useEffect(() => () => pararRef.current(), []);
 
   async function iniciarEscuta() {
+    setFalha(null);
+    setIniciando(true);
     try {
       const token = await chamarToken({ data: undefined });
-      setMostrarAjuda(false);
-      await transcricao.iniciar(token.access_token);
+      const motivo = await transcricao.iniciar(token.access_token);
+      if (motivo === "sem-audio-da-aba") {
+        setFalha(
+          `Faltou marcar “Compartilhar áudio da aba”. Sem isso a voz do cliente não é captada. Escolha de novo a aba ${ondeFalaOCliente} e marque essa opção.`,
+        );
+      } else if (motivo === "mic-negado") {
+        setFalha(
+          "O microfone está bloqueado. Clique no cadeado ao lado do endereço do site, permita o microfone e tente de novo.",
+        );
+      } else if (motivo === "sem-suporte") {
+        setFalha("Use o Google Chrome ou o Microsoft Edge para gravar a conversa.");
+      } else if (motivo === "cancelado") {
+        setFalha(`Você fechou a janela de escolha. Clique de novo e escolha a aba ${ondeFalaOCliente}.`);
+      } else if (motivo) {
+        setFalha("Não foi possível começar a gravar. Tente de novo.");
+      }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível liberar a transcrição.");
+      setFalha(e instanceof Error ? e.message : "Não foi possível liberar a transcrição.");
+    } finally {
+      setIniciando(false);
     }
   }
+
 
   async function encerrar() {
     setEncerrando(true);
