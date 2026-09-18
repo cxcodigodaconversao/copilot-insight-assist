@@ -441,7 +441,7 @@ function CallAoVivo() {
           <div className="flex-1 space-y-3 overflow-y-auto pr-2">
             {linhas.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nada por aqui ainda. A transcrição aparece assim que a escuta começar.
+                Nada por aqui ainda. A transcrição aparece assim que a gravação começar.
               </p>
             )}
             {linhas.map((l, i) => (
