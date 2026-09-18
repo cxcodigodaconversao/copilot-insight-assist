@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Brain, Headphones, List, LogOut, Phone, PhoneCall, Plus } from "lucide-react";
+import { Brain, Headphones, List, LogOut, Phone, PhoneCall, Plus, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
@@ -10,11 +10,12 @@ const itens = [
   { to: "/calls", label: "Calls (Closer)", icon: List },
   { to: "/nova-call", label: "Nova call", icon: Plus },
   { to: "/cerebro", label: "Cérebro CX", icon: Brain, somenteLider: true },
+  { to: "/configuracoes", label: "Configurações", icon: Settings, somenteAdm: true },
 ];
 
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { session, carregando, papel, podeVerTudo, nome, sair } = useAuth();
+  const { session, carregando, papel, podeVerTudo, ehAdm, nome, sair } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -42,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-1">
             {itens
-              .filter((i) => !i.somenteLider || podeVerTudo)
+              .filter((i) => (!i.somenteLider || podeVerTudo) && (!i.somenteAdm || ehAdm))
               .map((i) => (
                 <Link
                   key={i.to}

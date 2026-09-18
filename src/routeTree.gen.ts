@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as CerebroRouteImport } from './routes/cerebro'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as LigacoesRouteImport } from './routes/ligacoes'
 import { Route as NovaCallRouteImport } from './routes/nova-call'
 import { Route as NovaLigacaoRouteImport } from './routes/nova-ligacao'
@@ -31,6 +32,11 @@ const CallsRoute = CallsRouteImport.update({
 const CerebroRoute = CerebroRouteImport.update({
   id: '/cerebro',
   path: '/cerebro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LigacoesRoute = LigacoesRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/ligacoes': typeof LigacoesRoute
   '/nova-call': typeof NovaCallRoute
   '/nova-ligacao': typeof NovaLigacaoRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/ligacoes': typeof LigacoesRoute
   '/nova-call': typeof NovaCallRoute
   '/nova-ligacao': typeof NovaLigacaoRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/calls': typeof CallsRoute
   '/cerebro': typeof CerebroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/ligacoes': typeof LigacoesRoute
   '/nova-call': typeof NovaCallRoute
   '/nova-ligacao': typeof NovaLigacaoRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calls'
     | '/cerebro'
+    | '/configuracoes'
     | '/ligacoes'
     | '/nova-call'
     | '/nova-ligacao'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calls'
     | '/cerebro'
+    | '/configuracoes'
     | '/ligacoes'
     | '/nova-call'
     | '/nova-ligacao'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/calls'
     | '/cerebro'
+    | '/configuracoes'
     | '/ligacoes'
     | '/nova-call'
     | '/nova-ligacao'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CallsRoute: typeof CallsRoute
   CerebroRoute: typeof CerebroRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
   LigacoesRoute: typeof LigacoesRoute
   NovaCallRoute: typeof NovaCallRoute
   NovaLigacaoRoute: typeof NovaLigacaoRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/cerebro'
       fullPath: '/cerebro'
       preLoaderRoute: typeof CerebroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ligacoes': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CallsRoute: CallsRoute,
   CerebroRoute: CerebroRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
   LigacoesRoute: LigacoesRoute,
   NovaCallRoute: NovaCallRoute,
   NovaLigacaoRoute: NovaLigacaoRoute,
