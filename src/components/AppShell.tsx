@@ -10,6 +10,7 @@ const itens = [
   { to: "/calls", label: "Calls (Closer)", icon: List },
   { to: "/nova-call", label: "Nova call", icon: Plus },
   { to: "/cerebro", label: "Cérebro CX", icon: Brain, somenteLider: true },
+  { to: "/configuracoes", label: "Configurações", icon: Settings, somenteAdm: true },
 ];
 
 
