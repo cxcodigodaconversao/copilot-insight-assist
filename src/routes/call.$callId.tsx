@@ -70,6 +70,21 @@ function Chip({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Medidor({ rotulo, nivel }: { rotulo: string; nivel: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-14 uppercase tracking-widest text-muted-foreground">{rotulo}</span>
+      <div className="h-2 w-28 overflow-hidden rounded-full bg-secondary">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-150"
+          style={{ width: `${Math.round(Math.min(1, nivel) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+
 function CallAoVivo() {
   const { callId } = Route.useParams();
   const navigate = useNavigate();
