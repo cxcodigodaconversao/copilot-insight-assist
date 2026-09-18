@@ -11,7 +11,17 @@ const ConviteInput = z.object({
   redirectTo: z.string().url().optional(),
 });
 
-async function exigirAdm(context: { supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }; userId: string }) {
+type ContextoAdm = {
+  userId: string;
+  supabase: {
+    rpc: (
+      fn: "has_role",
+      args: { _user_id: string; _role: "adm" },
+    ) => PromiseLike<{ data: unknown; error: unknown }>;
+  };
+};
+
+async function exigirAdm(context: ContextoAdm) {
   const { data: ehAdm, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "adm",
