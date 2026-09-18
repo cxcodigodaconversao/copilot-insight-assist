@@ -106,6 +106,9 @@ function CallAoVivo() {
   });
 
   const ehSdr = call?.tipo === "sdr";
+  const ondeFalaOCliente = ehSdr ? "do Clint (onde está a ligação)" : "do Google Meet";
+  const navegadorOk = typeof window === "undefined" ? true : suportaCapturaDeAba();
+
 
   const { data: perguntas } = useQuery({
     queryKey: ["perguntas-qualificacao-ativas"],
