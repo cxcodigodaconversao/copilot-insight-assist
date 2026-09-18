@@ -1,13 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, History, Mic, MicOff, MonitorUp, Square } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleHelp,
+  History,
+  Mic,
+  MicOff,
+  RefreshCw,
+  Radio,
+  Square,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { useTranscricao, type Falante } from "@/hooks/useTranscricao";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
 import {
   gerarSugestao,
   obterTokenDeepgram,
@@ -15,6 +31,7 @@ import {
   gerarResumoCall,
 } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/call/$callId")({
   head: () => ({
@@ -53,6 +70,21 @@ function Chip({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Medidor({ rotulo, nivel }: { rotulo: string; nivel: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-14 uppercase tracking-widest text-muted-foreground">{rotulo}</span>
+      <div className="h-2 w-28 overflow-hidden rounded-full bg-secondary">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-150"
+          style={{ width: `${Math.round(Math.min(1, nivel) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+
 function CallAoVivo() {
   const { callId } = Route.useParams();
   const navigate = useNavigate();
@@ -68,7 +100,11 @@ function CallAoVivo() {
   const [pensando, setPensando] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
   const [segundos, setSegundos] = useState(0);
-  const [mostrarAjuda, setMostrarAjuda] = useState(true);
+  const [falha, setFalha] = useState<string | null>(null);
+  const [comoFunciona, setComoFunciona] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [semSomDoCliente, setSemSomDoCliente] = useState(false);
+
   const fimRef = useRef<HTMLDivElement>(null);
 
   const { data: call } = useQuery({
@@ -85,6 +121,11 @@ function CallAoVivo() {
   });
 
   const ehSdr = call?.tipo === "sdr";
+  const ondeFalaOCliente = ehSdr ? "do Clint (onde está a ligação)" : "do Google Meet";
+  const [navegadorOk, setNavegadorOk] = useState(true);
+  useEffect(() => setNavegadorOk(suportaCapturaDeAba()), []);
+
+
 
   const { data: perguntas } = useQuery({
     queryKey: ["perguntas-qualificacao-ativas"],
@@ -156,6 +197,19 @@ function CallAoVivo() {
     return () => clearInterval(t);
   }, [transcricao.ativo]);
 
+  const nivelClienteRef = useRef(0);
+  nivelClienteRef.current = Math.max(nivelClienteRef.current, transcricao.nivelCliente);
+  useEffect(() => {
+    if (!transcricao.ativo) {
+      nivelClienteRef.current = 0;
+      setSemSomDoCliente(false);
+      return;
+    }
+    const t = setTimeout(() => setSemSomDoCliente(nivelClienteRef.current < 0.02), 15000);
+    return () => clearTimeout(t);
+  }, [transcricao.ativo]);
+
+
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [linhas]);
@@ -165,14 +219,33 @@ function CallAoVivo() {
   useEffect(() => () => pararRef.current(), []);
 
   async function iniciarEscuta() {
+    setFalha(null);
+    setIniciando(true);
     try {
       const token = await chamarToken({ data: undefined });
-      setMostrarAjuda(false);
-      await transcricao.iniciar(token.access_token);
+      const motivo = await transcricao.iniciar(token.access_token);
+      if (motivo === "sem-audio-da-aba") {
+        setFalha(
+          `Faltou marcar “Compartilhar áudio da aba”. Sem isso a voz do cliente não é captada. Escolha de novo a aba ${ondeFalaOCliente} e marque essa opção.`,
+        );
+      } else if (motivo === "mic-negado") {
+        setFalha(
+          "O microfone está bloqueado. Clique no cadeado ao lado do endereço do site, permita o microfone e tente de novo.",
+        );
+      } else if (motivo === "sem-suporte") {
+        setFalha("Use o Google Chrome ou o Microsoft Edge para gravar a conversa.");
+      } else if (motivo === "cancelado") {
+        setFalha(`Você fechou a janela de escolha. Clique de novo e escolha a aba ${ondeFalaOCliente}.`);
+      } else if (motivo) {
+        setFalha("Não foi possível começar a gravar. Tente de novo.");
+      }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível liberar a transcrição.");
+      setFalha(e instanceof Error ? e.message : "Não foi possível liberar a transcrição.");
+    } finally {
+      setIniciando(false);
     }
   }
+
 
   async function encerrar() {
     setEncerrando(true);
@@ -215,14 +288,13 @@ function CallAoVivo() {
           {mm}:{ss}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!transcricao.ativo ? (
-            <Button onClick={iniciarEscuta}>
-              <MonitorUp className="size-4" /> Iniciar escuta
-            </Button>
-          ) : (
+          <Button variant="ghost" onClick={() => setComoFunciona(true)}>
+            <CircleHelp className="size-4" /> Como funciona
+          </Button>
+          {transcricao.ativo && (
             <Button variant="secondary" onClick={transcricao.alternarPausa}>
               {transcricao.emPausa ? <Mic className="size-4" /> : <MicOff className="size-4" />}
-              {transcricao.emPausa ? "Retomar escuta" : "Pausar escuta"}
+              {transcricao.emPausa ? "Retomar gravação" : "Pausar gravação"}
             </Button>
           )}
           <Button variant="outline" onClick={() => setVerHistorico((v) => !v)}>
@@ -234,20 +306,132 @@ function CallAoVivo() {
         </div>
       </div>
 
-      {mostrarAjuda && !transcricao.ativo && (
-        <div className="card-cx mb-4 space-y-2 p-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Antes de iniciar a escuta:</p>
-          <ol className="list-decimal space-y-1 pl-5">
-            <li>Abra a reunião do Google Meet em outra aba do Chrome.</li>
-            <li>Clique em “Iniciar escuta” e permita o microfone.</li>
-            <li>Na janela que abrir, escolha a aba “Guia do Chrome” onde o Meet está.</li>
-            <li>
-              Marque <strong className="text-primary">“Compartilhar áudio da aba”</strong> antes de
-              confirmar. Sem isso o cliente não é transcrito.
-            </li>
-          </ol>
+      {!transcricao.ativo && (
+        <div className="card-cx mb-4 flex flex-col items-center gap-3 p-8">
+          {navegadorOk ? (
+            <>
+              <Button
+                size="lg"
+                className="h-16 px-10 text-lg glow-gold"
+                onClick={iniciarEscuta}
+                disabled={iniciando}
+              >
+                <Radio className="size-5" /> {iniciando ? "Preparando…" : "Começar a gravar"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Escolha a aba {ondeFalaOCliente} e marque “Compartilhar áudio da aba”.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-warning">
+              Este navegador não consegue captar o som da conversa. Abra o Copiloto CX no Google
+              Chrome ou no Microsoft Edge.
+            </p>
+          )}
+          {falha && (
+            <div className="flex w-full max-w-xl items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <div className="flex-1">
+                <p>{falha}</p>
+                {navegadorOk && (
+                  <Button className="mt-3" variant="secondary" onClick={iniciarEscuta}>
+                    <RefreshCw className="size-4" /> Tentar de novo
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {transcricao.ativo && (
+        <div className="card-cx mb-4 flex flex-wrap items-center gap-6 p-4 text-xs">
+          <Medidor rotulo="Você" nivel={transcricao.nivelVendedor} />
+          <Medidor rotulo="Cliente" nivel={transcricao.nivelCliente} />
+          {semSomDoCliente && (
+            <div className="flex items-center gap-3 text-warning">
+              <AlertTriangle className="size-4" />
+              <span>
+                Não estou ouvindo o cliente. Provavelmente a aba escolhida foi a errada ou faltou
+                marcar “Compartilhar áudio da aba”.
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  transcricao.parar();
+                  setSemSomDoCliente(false);
+                }}
+              >
+                <RefreshCw className="size-4" /> Escolher a aba de novo
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={comoFunciona} onOpenChange={setComoFunciona}>
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Como o Copiloto grava a conversa</DialogTitle>
+            <DialogDescription>
+              {ehSdr
+                ? "Na ligação pelo Clint, dentro do Chrome."
+                : "Na reunião pelo Google Meet, dentro do Chrome."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-muted-foreground">
+            <p>
+              Como você usa fone de ouvido, o seu microfone só escuta você. A voz do cliente existe
+              apenas dentro da aba {ondeFalaOCliente}. Por isso o Copiloto usa duas fontes de som:
+              o seu microfone (sua voz) e o som daquela aba (a voz do cliente).
+            </p>
+            <div>
+              <p className="mb-1 font-semibold text-foreground">O que acontece quando você clica</p>
+              <ol className="list-decimal space-y-1 pl-5">
+                <li>O Chrome pede permissão para usar o microfone. Clique em permitir.</li>
+                <li>
+                  Abre uma janelinha do Chrome. Vá na parte “Guia do Chrome” e escolha a aba
+                  {ehSdr ? " do Clint" : " do Meet"}.
+                </li>
+                <li>
+                  Marque <strong className="text-primary">“Compartilhar áudio da aba”</strong> e
+                  confirme. É essa marcação que traz a voz do cliente.
+                </li>
+                <li>Pronto: a transcrição começa e as sugestões aparecem sozinhas.</li>
+              </ol>
+            </div>
+            <div>
+              <p className="mb-1 font-semibold text-foreground">Dúvidas comuns</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  <strong className="text-foreground">O cliente vê alguma coisa?</strong> Não. Quem
+                  compartilha é o navegador, não {ehSdr ? "o Clint" : "o Meet"}. Nada aparece para
+                  ele.
+                </li>
+                <li>
+                  <strong className="text-foreground">Precisa ser a mesma conta?</strong> Não. Não
+                  importa a conta Google nem o login.
+                </li>
+                <li>
+                  <strong className="text-foreground">Precisa ser a mesma página?</strong> Não. Só
+                  precisa estar na mesma janela do Chrome, em outra aba.
+                </li>
+                <li>
+                  <strong className="text-foreground">E a imagem da tela?</strong> É descartada na
+                  hora. O Copiloto usa só o som.
+                </li>
+                <li>
+                  <strong className="text-foreground">Como sei que está funcionando?</strong> As
+                  barrinhas “Você” e “Cliente” se mexem enquanto cada um fala.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
 
       <div className="grid gap-4 lg:grid-cols-[2fr_3fr]">
         <div className="card-cx flex h-[70vh] flex-col p-4">
@@ -257,7 +441,7 @@ function CallAoVivo() {
           <div className="flex-1 space-y-3 overflow-y-auto pr-2">
             {linhas.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nada por aqui ainda. A transcrição aparece assim que a escuta começar.
+                Nada por aqui ainda. A transcrição aparece assim que a gravação começar.
               </p>
             )}
             {linhas.map((l, i) => (
