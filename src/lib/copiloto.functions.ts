@@ -303,6 +303,23 @@ export const obterTokenDeepgram = createServerFn({ method: "POST" })
       body: JSON.stringify({ ttl_seconds: 300 }),
     });
     if (!res.ok) {
+      const corpo = await res.text();
+      let categoria = "sem-categoria";
+      try {
+        const detalhe = JSON.parse(corpo) as { category?: string; err_code?: string };
+        categoria = detalhe.category ?? detalhe.err_code ?? categoria;
+      } catch {
+        // A resposta pode não ser JSON. Nunca registramos a chave nem o corpo bruto.
+      }
+      console.error("Deepgram não liberou o acesso temporário", {
+        status: res.status,
+        categoria,
+      });
+      if (res.status === 403) {
+        throw new Error(
+          "A Deepgram recusou a liberação. A chave precisa ter permissão Member ou superior.",
+        );
+      }
       throw new Error(`Não foi possível liberar a transcrição (${res.status}).`);
     }
     const json = (await res.json()) as { access_token: string; expires_in: number };
