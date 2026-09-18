@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type Falante = "cliente" | "vendedor";
+
+export type MotivoFalha = "sem-suporte" | "mic-negado" | "sem-audio-da-aba" | "cancelado" | "outro";
 
 type Opcoes = {
   idioma: string;
@@ -39,8 +41,20 @@ export function suportaCapturaDeAba() {
 export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
   const canais = useRef<Canal[]>([]);
   const pausado = useRef(false);
+  const niveis = useRef<{ vendedor: number; cliente: number }>({ vendedor: 0, cliente: 0 });
   const [ativo, setAtivo] = useState(false);
   const [emPausa, setEmPausa] = useState(false);
+  const [nivelVendedor, setNivelVendedor] = useState(0);
+  const [nivelCliente, setNivelCliente] = useState(0);
+
+  useEffect(() => {
+    if (!ativo) return;
+    const t = setInterval(() => {
+      setNivelVendedor(niveis.current.vendedor);
+      setNivelCliente(niveis.current.cliente);
+    }, 150);
+    return () => clearInterval(t);
+  }, [ativo]);
 
   const abrirCanal = useCallback(
     async (stream: MediaStream, falante: Falante, token: string) => {
@@ -61,8 +75,13 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       const source = ctx.createMediaStreamSource(stream);
       const node = ctx.createScriptProcessor(4096, 1, 1);
       node.onaudioprocess = (e) => {
+        const dados = e.inputBuffer.getChannelData(0);
+        let soma = 0;
+        for (let i = 0; i < dados.length; i++) soma += (dados[i] ?? 0) * (dados[i] ?? 0);
+        const rms = Math.sqrt(soma / dados.length);
+        niveis.current[falante] = Math.min(1, rms * 8);
         if (pausado.current || ws.readyState !== WebSocket.OPEN) return;
-        ws.send(floatParaPcm16(e.inputBuffer.getChannelData(0)));
+        ws.send(floatParaPcm16(dados));
       };
       source.connect(node);
       const mudo = ctx.createGain();
@@ -106,39 +125,62 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       void c.ctx.close();
     }
     canais.current = [];
+    niveis.current = { vendedor: 0, cliente: 0 };
+    setNivelVendedor(0);
+    setNivelCliente(0);
     setAtivo(false);
     setEmPausa(false);
     pausado.current = false;
   }, []);
 
+  /** Retorna null quando deu certo, ou o motivo da falha. */
   const iniciar = useCallback(
-    async (token: string) => {
-      if (!suportaCapturaDeAba()) {
-        onErro("Use o Google Chrome ou o Microsoft Edge para capturar o áudio da reunião.");
-        return false;
-      }
+    async (token: string): Promise<MotivoFalha | null> => {
+      if (!suportaCapturaDeAba()) return "sem-suporte";
+
+      let mic: MediaStream;
       try {
-        const mic = await navigator.mediaDevices.getUserMedia({
+        mic = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
         });
-        const tela = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-        tela.getVideoTracks().forEach((t) => t.stop());
-        if (tela.getAudioTracks().length === 0) {
-          mic.getTracks().forEach((t) => t.stop());
-          onErro('Você não marcou "Compartilhar áudio da aba". Tente de novo.');
-          return false;
-        }
+      } catch {
+        return "mic-negado";
+      }
+
+      let tela: MediaStream;
+      try {
+        tela = await navigator.mediaDevices.getDisplayMedia({
+          audio: true,
+          video: true,
+          // @ts-expect-error opções específicas do Chrome
+          preferCurrentTab: false,
+          selfBrowserSurface: "exclude",
+          systemAudio: "include",
+        });
+      } catch {
+        mic.getTracks().forEach((t) => t.stop());
+        return "cancelado";
+      }
+
+      tela.getVideoTracks().forEach((t) => t.stop());
+      if (tela.getAudioTracks().length === 0) {
+        mic.getTracks().forEach((t) => t.stop());
+        return "sem-audio-da-aba";
+      }
+
+      try {
         const somDaAba = new MediaStream(tela.getAudioTracks());
         await abrirCanal(mic, "vendedor", token);
         await abrirCanal(somDaAba, "cliente", token);
         setAtivo(true);
-        return true;
-      } catch (e) {
-        onErro(e instanceof Error ? e.message : "Não foi possível acessar o áudio.");
-        return false;
+        return null;
+      } catch {
+        mic.getTracks().forEach((t) => t.stop());
+        tela.getTracks().forEach((t) => t.stop());
+        return "outro";
       }
     },
-    [abrirCanal, onErro],
+    [abrirCanal],
   );
 
   const alternarPausa = useCallback(() => {
@@ -146,5 +188,5 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
     setEmPausa(pausado.current);
   }, []);
 
-  return { iniciar, parar, alternarPausa, ativo, emPausa };
+  return { iniciar, parar, alternarPausa, ativo, emPausa, nivelVendedor, nivelCliente };
 }
