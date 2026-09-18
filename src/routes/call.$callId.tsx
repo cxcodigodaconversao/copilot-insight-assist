@@ -24,12 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
-import {
-  gerarSugestao,
-  obterTokenDeepgram,
-  registrarFala,
-  gerarResumoCall,
-} from "@/lib/copiloto.functions";
+import { obterTokenDeepgram, registrarFala, gerarResumoCall } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
 
 
@@ -88,7 +83,6 @@ function Medidor({ rotulo, nivel }: { rotulo: string; nivel: number }) {
 function CallAoVivo() {
   const { callId } = Route.useParams();
   const navigate = useNavigate();
-  const chamarSugestao = useServerFn(gerarSugestao);
   const chamarToken = useServerFn(obterTokenDeepgram);
   const chamarFala = useServerFn(registrarFala);
   const chamarResumo = useServerFn(gerarResumoCall);
@@ -98,6 +92,7 @@ function CallAoVivo() {
   const [historico, setHistorico] = useState<Sugestao[]>([]);
   const [verHistorico, setVerHistorico] = useState(false);
   const [pensando, setPensando] = useState(false);
+  const [perguntaParcial, setPerguntaParcial] = useState("");
   const [encerrando, setEncerrando] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [falha, setFalha] = useState<string | null>(null);
@@ -168,20 +163,58 @@ function CallAoVivo() {
         return;
       }
       setPensando(true);
-      chamarSugestao({ data: { callId, texto } })
-        .then((r) => {
-          const resposta = r.resposta as Sugestao;
-          if (resposta?.acao && resposta.acao !== "manter") {
-            setSugestao(resposta);
-            setHistorico((h) => [resposta, ...h]);
+      setPerguntaParcial("");
+      void (async () => {
+        try {
+          const { data: sessao } = await supabase.auth.getSession();
+          const token = sessao.session?.access_token;
+          if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
+          const res = await fetch("/api/sugestao", {
+            method: "POST",
+            headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ callId, texto }),
+          });
+          if (!res.ok || !res.body) throw new Error("Falha ao gerar a sugestão.");
+
+          const leitor = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          for (;;) {
+            const { done, value } = await leitor.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const linhasNdjson = buffer.split("\n");
+            buffer = linhasNdjson.pop() ?? "";
+            for (const l of linhasNdjson) {
+              if (!l.trim()) continue;
+              const evento = JSON.parse(l) as {
+                tipo: string;
+                proxima_pergunta?: string;
+                resposta?: Sugestao;
+                mensagem?: string;
+              };
+              if (evento.tipo === "parcial" && evento.proxima_pergunta) {
+                setPerguntaParcial(evento.proxima_pergunta);
+              } else if (evento.tipo === "final") {
+                const resposta = evento.resposta;
+                if (resposta?.acao && resposta.acao !== "manter") {
+                  setSugestao(resposta);
+                  setHistorico((h) => [resposta, ...h]);
+                }
+              } else if (evento.tipo === "erro") {
+                toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
+              }
+            }
           }
-        })
-        .catch((e: unknown) =>
-          toast.error(e instanceof Error ? e.message : "Falha ao gerar a sugestão."),
-        )
-        .finally(() => setPensando(false));
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Falha ao gerar a sugestão.");
+        } finally {
+          setPensando(false);
+          setPerguntaParcial("");
+        }
+      })();
     },
-    [callId, chamarSugestao, chamarFala],
+    [callId, chamarFala],
   );
 
   const transcricao = useTranscricao({
@@ -280,7 +313,9 @@ function CallAoVivo() {
           <p className="text-[10px] uppercase tracking-widest text-primary">
             {ehSdr ? "Ligação de qualificação (SDR)" : "Call de negociação (Closer)"}
           </p>
-          <p className="font-display text-lg">{call?.nome_lead ?? "Call"}</p>
+          <p className="font-display text-lg">
+            {call?.nome_lead?.trim() || (ehSdr ? "Lead sem nome ainda" : "Call")}
+          </p>
           <p className="text-xs text-muted-foreground">{call?.ofertas?.nome ?? ""}</p>
         </div>
 
@@ -496,17 +531,28 @@ function CallAoVivo() {
             </div>
           )}
 
-          {!sugestao && (
+          {!sugestao && !perguntaParcial && (
             <p className="text-muted-foreground">
               {pensando ? "Analisando a fala do cliente…" : "Aguardando a primeira fala do cliente."}
             </p>
           )}
 
+          {!sugestao && perguntaParcial && (
+            <div className="flex flex-1 flex-col">
+              <p className="text-base text-muted-foreground">Sugestão chegando…</p>
+              <p className="mt-6 font-display text-3xl leading-snug text-primary">
+                {perguntaParcial}
+              </p>
+            </div>
+          )}
+
           {sugestao && (
             <div className="flex flex-1 flex-col">
-              <p className="text-base text-muted-foreground">{sugestao.leitura}</p>
+              <p className="text-base text-muted-foreground">
+                {pensando && perguntaParcial ? "Sugestão chegando…" : sugestao.leitura}
+              </p>
               <p className="mt-6 font-display text-3xl leading-snug text-primary">
-                {sugestao.proxima_pergunta}
+                {pensando && perguntaParcial ? perguntaParcial : sugestao.proxima_pergunta}
               </p>
               <p className="mt-4 text-sm text-muted-foreground">{sugestao.porque}</p>
               <div className="mt-auto flex flex-wrap gap-2 pt-6">

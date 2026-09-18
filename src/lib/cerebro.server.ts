@@ -34,7 +34,31 @@ function mesclarPorProduto<T extends LinhaHeranca>(linhas: T[], ofertaId: string
   return [...globais, ...doProduto.filter((l) => !l.oculto)];
 }
 
-export async function carregarCerebro(supabase: DB, ofertaId: string | null): Promise<CerebroContexto> {
+// Cache curto por produto: durante uma ligação o cérebro não muda,
+// e montá-lo custa 7 consultas ao banco a cada fala do cliente.
+const cache = new Map<string, { em: number; ctx: CerebroContexto }>();
+const CACHE_MS = 60_000;
+
+export function limparCacheCerebro() {
+  cache.clear();
+}
+
+export async function carregarCerebro(
+  supabase: DB,
+  ofertaId: string | null,
+  usarCache = false,
+): Promise<CerebroContexto> {
+  const chaveCache = ofertaId ?? "geral";
+  if (usarCache) {
+    const guardado = cache.get(chaveCache);
+    if (guardado && Date.now() - guardado.em < CACHE_MS) return guardado.ctx;
+  }
+  const ctx = await montarCerebro(supabase, ofertaId);
+  cache.set(chaveCache, { em: Date.now(), ctx });
+  return ctx;
+}
+
+async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<CerebroContexto> {
   const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes] =
     await Promise.all([
       ofertaId
@@ -137,17 +161,18 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {
   "acao": "manter | orientar | alerta",
+  "proxima_pergunta": "a pergunta exata que o SDR deve fazer agora, em linguagem falada",
   "leitura": "1 frase: o que o lead acabou de revelar",
   "perfil_disc": {"tipo": "D|I|S|C|indefinido", "confianca": 0.0},
   "etapa_qualificacao": "abertura | diagnostico | pontuacao | agendamento | encerramento",
   "temperatura": "frio | morno | quente",
   "pontuacao_qualificacao": 0,
   "sinal": "objecao_agenda | lead_desqualificado | sinal_agendamento | duvida_fora_do_escopo | desvio | nenhum",
-  "proxima_pergunta": "a pergunta exata que o SDR deve fazer agora, em linguagem falada",
   "porque": "1 frase curta",
   "resultado_sugerido": "seguir_qualificando | agendar_agora | desqualificar",
   "alerta": "só preencha se o SDR estiver perdendo o lead ou pulando etapa, senão null"
 }
+Escreva os campos exatamente nessa ordem, começando por "acao" e "proxima_pergunta". Seja direto: frases curtas.
 Quando "acao" for "manter", envie apenas {"acao": "manter"}.
 ${ctx.regras["formato_saida_extra"] ?? ""}`;
 }
@@ -202,16 +227,17 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {
   "acao": "manter | orientar | alerta",
+  "proxima_pergunta": "a pergunta exata que o vendedor deve fazer agora, em linguagem falada",
   "leitura": "1 frase: o que o cliente acabou de revelar (fato, não interpretação)",
   "perfil_disc": {"tipo": "D|I|S|C|indefinido", "confianca": 0.0},
   "etapa_spin": "situacao | problema | implicacao | necessidade | fechamento",
   "temperatura": "frio | morno | quente",
   "sinal": "objecao_preco | objecao_tempo | objecao_confianca | objecao_autoridade | objecao_necessidade | objecao_concorrente | sinal_compra | duvida_produto | desvio | nenhum",
   "objecao_usada": "id da objeção cadastrada que você usou, ou null",
-  "proxima_pergunta": "a pergunta exata que o vendedor deve fazer agora, em linguagem falada",
   "porque": "1 frase curta explicando a escolha",
   "alerta": "só preencha se o vendedor cometeu um erro ou está perdendo o cliente. 1 frase. Senão null"
 }
+Escreva os campos exatamente nessa ordem, começando por "acao" e "proxima_pergunta". Seja direto: frases curtas.
 Quando "acao" for "manter", envie apenas {"acao": "manter"}.
 ${ctx.regras["formato_saida_extra"] ?? ""}`;
 }
@@ -274,4 +300,73 @@ export async function chamarClaude(opts: {
     .filter((c) => c.type === "text")
     .map((c) => c.text ?? "")
     .join("\n");
+}
+
+/** Igual ao chamarClaude, mas entrega o texto aos pedaços, conforme é gerado. */
+export async function chamarClaudeStream(opts: {
+  system: string;
+  messages: AnthropicMsg[];
+  model: string;
+  maxTokens: number;
+  onTexto: (pedaco: string, acumulado: string) => void;
+}): Promise<string> {
+  const apiKey = process.env["ANTHROPIC_API_KEY"];
+  if (!apiKey) {
+    throw new Error(
+      "A chave da Anthropic ainda não foi configurada. Peça ao administrador para cadastrá-la.",
+    );
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      max_tokens: opts.maxTokens,
+      stream: true,
+      system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+      messages: opts.messages,
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    const detalhe = await res.text().catch(() => "");
+    throw new Error(`Falha na API da Anthropic (${res.status}): ${detalhe.slice(0, 400)}`);
+  }
+
+  const leitor = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let texto = "";
+
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const linhas = buffer.split("\n");
+    buffer = linhas.pop() ?? "";
+    for (const linha of linhas) {
+      if (!linha.startsWith("data:")) continue;
+      const bruto = linha.slice(5).trim();
+      if (!bruto || bruto === "[DONE]") continue;
+      try {
+        const evento = JSON.parse(bruto) as {
+          type?: string;
+          delta?: { type?: string; text?: string };
+        };
+        if (evento.type === "content_block_delta" && evento.delta?.text) {
+          texto += evento.delta.text;
+          opts.onTexto(evento.delta.text, texto);
+        }
+      } catch {
+        /* evento de controle */
+      }
+    }
+  }
+
+  return texto;
 }

@@ -6,9 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useCadastro, useOfertasAtivas } from "@/components/Cadastros";
 import { NovoCadastroRapido } from "@/components/NovoCadastroRapido";
 
@@ -18,7 +16,7 @@ export const Route = createFileRoute("/nova-ligacao")({
       { title: "Nova ligação (SDR) — Copiloto CX" },
       {
         name: "description",
-        content: "Abra uma ligação de qualificação e conduza o lead até o agendamento.",
+        content: "Escolha o produto e comece a discar. Os dados do lead você preenche depois.",
       },
       { property: "og:title", content: "Nova ligação (SDR) — Copiloto CX" },
       { property: "og:description", content: "Ligação de qualificação com copiloto ao vivo." },
@@ -30,62 +28,53 @@ export const Route = createFileRoute("/nova-ligacao")({
 });
 
 const selectClass = "h-10 w-full rounded-md border border-input bg-input px-3 text-sm";
+const CHAVE_MEMORIA = "cx_ultima_ligacao";
 
 function NovaLigacao() {
   const { user, nome } = useAuth();
   const navigate = useNavigate();
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({
-    cliente: "",
-    oferta_id: "",
-    time: "",
-    sdr_nome: "",
-    funil: "",
-    origem_lead: "",
-    nome_lead: "",
-    telefone_lead: "",
-    email_lead: "",
-    notas_crm: "",
-    objetivo: "",
-  });
+  const [ofertaId, setOfertaId] = useState("");
+  const [origem, setOrigem] = useState("");
 
   const { data: ofertas } = useOfertasAtivas();
-  const times = useCadastro("times").data;
   const origens = useCadastro("origens").data;
-  const funis = useCadastro("funis").data;
   const clientes = useCadastro("clientes").data;
-  const sdrs = useCadastro("sdrs_cadastro").data;
 
+  // Lembra o último produto e origem usados, para a próxima ligação ser um clique só.
   useEffect(() => {
-    if (nome) setForm((f) => (f.sdr_nome ? f : { ...f, sdr_nome: nome }));
-  }, [nome]);
+    try {
+      const salvo = JSON.parse(localStorage.getItem(CHAVE_MEMORIA) ?? "{}") as {
+        ofertaId?: string;
+        origem?: string;
+      };
+      if (salvo.ofertaId) setOfertaId(salvo.ofertaId);
+      if (salvo.origem) setOrigem(salvo.origem);
+    } catch {
+      /* primeira vez */
+    }
+  }, []);
 
-  const clienteSelecionado = (clientes ?? []).find((c) => c.nome === form.cliente);
-  const ofertasFiltradas = clienteSelecionado
-    ? (ofertas ?? []).filter((o) => o.cliente_id === clienteSelecionado.id)
-    : (ofertas ?? []);
+  const oferta = (ofertas ?? []).find((o) => o.id === ofertaId);
+  const cliente = (clientes ?? []).find((c) => c.id === oferta?.cliente_id);
 
   async function iniciar(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
     setSalvando(true);
+    localStorage.setItem(CHAVE_MEMORIA, JSON.stringify({ ofertaId, origem }));
     const { data, error } = await supabase
       .from("calls")
       .insert({
         vendedor_id: user.id,
         tipo: "sdr",
         sdr_id: user.id,
-        sdr_nome: form.sdr_nome,
-        oferta_id: form.oferta_id || null,
-        cliente: form.cliente,
-        time: form.time,
-        funil: form.funil,
-        origem_lead: form.origem_lead,
-        nome_lead: form.nome_lead,
-        telefone_lead: form.telefone_lead,
-        email_lead: form.email_lead,
-        notas_crm: form.notas_crm,
-        objetivo: form.objetivo,
+        sdr_nome: nome ?? "",
+        oferta_id: ofertaId || null,
+        cliente: cliente?.nome ?? "",
+        origem_lead: origem,
+        nome_lead: "",
+        objetivo: "Qualificar e agendar o diagnóstico com o especialista.",
       })
       .select("id")
       .single();
@@ -104,53 +93,21 @@ function NovaLigacao() {
         <h1 className="text-2xl">Nova ligação (SDR)</h1>
       </div>
 
-      <form onSubmit={iniciar} className="max-w-3xl space-y-4">
+      <form onSubmit={iniciar} className="max-w-2xl space-y-4">
         <section className="card-cx space-y-4 p-6">
-          <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Identificação</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente</Label>
-              <div className="flex gap-2">
-                <select
-                  id="cliente"
-                  value={form.cliente}
-                  onChange={(e) => setForm({ ...form, cliente: e.target.value })}
-                  className={selectClass}
-                >
-                  <option value="">Selecione…</option>
-                  {(clientes ?? []).map((c) => (
-                    <option key={c.id} value={c.nome}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
-                <NovoCadastroRapido
-                  tabela="clientes"
-                  titulo="Cliente"
-                  onCriado={(i) => setForm((f) => ({ ...f, cliente: i.nome }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="oferta">Produto / oferta</Label>
+              <Label htmlFor="oferta">Produto</Label>
               <div className="flex gap-2">
                 <select
                   id="oferta"
                   required
-                  value={form.oferta_id}
-                  onChange={(e) => {
-                    const o = (ofertas ?? []).find((x) => x.id === e.target.value);
-                    const dono = (clientes ?? []).find((c) => c.id === o?.cliente_id);
-                    setForm((f) => ({
-                      ...f,
-                      oferta_id: e.target.value,
-                      cliente: dono ? dono.nome : f.cliente,
-                    }));
-                  }}
+                  value={ofertaId}
+                  onChange={(e) => setOfertaId(e.target.value)}
                   className={selectClass}
                 >
                   <option value="">Selecione…</option>
-                  {ofertasFiltradas.map((o) => (
+                  {(ofertas ?? []).map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nome}
                     </option>
@@ -159,89 +116,18 @@ function NovaLigacao() {
                 <NovoCadastroRapido
                   tabela="ofertas"
                   titulo="Produto"
-                  onCriado={(i) => setForm((f) => ({ ...f, oferta_id: i.id }))}
+                  onCriado={(i) => setOfertaId(i.id)}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time">Time</Label>
-              <div className="flex gap-2">
-                <select
-                  id="time"
-                  value={form.time}
-                  onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  className={selectClass}
-                >
-                  <option value="">Selecione…</option>
-                  {(times ?? []).map((t) => (
-                    <option key={t.id} value={t.nome}>
-                      {t.nome}
-                    </option>
-                  ))}
-                </select>
-                <NovoCadastroRapido
-                  tabela="times"
-                  titulo="Time"
-                  onCriado={(i) => setForm((f) => ({ ...f, time: i.nome }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sdr">SDR</Label>
-              <div className="flex gap-2">
-                <select
-                  id="sdr"
-                  value={form.sdr_nome}
-                  onChange={(e) => setForm({ ...form, sdr_nome: e.target.value })}
-                  className={selectClass}
-                >
-                  <option value="">Selecione…</option>
-                  {nome && !(sdrs ?? []).some((s) => s.nome === nome) && (
-                    <option value={nome}>{nome}</option>
-                  )}
-                  {(sdrs ?? []).map((s) => (
-                    <option key={s.id} value={s.nome}>
-                      {s.nome}
-                    </option>
-                  ))}
-                </select>
-                <NovoCadastroRapido
-                  tabela="sdrs_cadastro"
-                  titulo="SDR"
-                  onCriado={(i) => setForm((f) => ({ ...f, sdr_nome: i.nome }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="funil">Funil</Label>
-              <div className="flex gap-2">
-                <select
-                  id="funil"
-                  value={form.funil}
-                  onChange={(e) => setForm({ ...form, funil: e.target.value })}
-                  className={selectClass}
-                >
-                  <option value="">Selecione…</option>
-                  {(funis ?? []).map((f) => (
-                    <option key={f.id} value={f.nome}>
-                      {f.nome}
-                    </option>
-                  ))}
-                </select>
-                <NovoCadastroRapido
-                  tabela="funis"
-                  titulo="Funil"
-                  onCriado={(i) => setForm((f) => ({ ...f, funil: i.nome }))}
-                />
-              </div>
+              {cliente && <p className="text-xs text-muted-foreground">Cliente: {cliente.nome}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="origem">Origem</Label>
               <div className="flex gap-2">
                 <select
                   id="origem"
-                  value={form.origem_lead}
-                  onChange={(e) => setForm({ ...form, origem_lead: e.target.value })}
+                  value={origem}
+                  onChange={(e) => setOrigem(e.target.value)}
                   className={selectClass}
                 >
                   <option value="">Selecione…</option>
@@ -254,66 +140,19 @@ function NovaLigacao() {
                 <NovoCadastroRapido
                   tabela="origens"
                   titulo="Origem"
-                  onCriado={(i) => setForm((f) => ({ ...f, origem_lead: i.nome }))}
+                  onCriado={(i) => setOrigem(i.nome)}
                 />
               </div>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Nome, telefone, e-mail e anotações do lead você preenche depois, na tela de resumo da
+            ligação.
+          </p>
         </section>
 
-        <section className="card-cx space-y-4 p-6">
-          <h2 className="text-sm uppercase tracking-widest text-muted-foreground">Lead</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="lead">Nome do lead</Label>
-              <Input
-                id="lead"
-                required
-                value={form.nome_lead}
-                onChange={(e) => setForm({ ...form, nome_lead: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone</Label>
-              <Input
-                id="telefone"
-                value={form.telefone_lead}
-                onChange={(e) => setForm({ ...form, telefone_lead: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email_lead}
-                onChange={(e) => setForm({ ...form, email_lead: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="notas">Notas do CRM</Label>
-            <Textarea
-              id="notas"
-              rows={4}
-              value={form.notas_crm}
-              onChange={(e) => setForm({ ...form, notas_crm: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="objetivo">Objetivo desta ligação</Label>
-            <Textarea
-              id="objetivo"
-              rows={2}
-              placeholder="Qualificar e agendar o diagnóstico com o especialista."
-              value={form.objetivo}
-              onChange={(e) => setForm({ ...form, objetivo: e.target.value })}
-            />
-          </div>
-        </section>
-
-        <Button type="submit" size="lg" disabled={salvando}>
-          {salvando ? "Criando…" : "Iniciar ligação"}
+        <Button type="submit" size="lg" className="h-14 px-8 text-base glow-gold" disabled={salvando}>
+          {salvando ? "Abrindo…" : "Começar a ligar"}
         </Button>
       </form>
     </AppShell>
