@@ -60,8 +60,17 @@ function Login() {
     e.preventDefault();
     setEnviando(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
       if (error) throw error;
+      const { data: perfil } = await supabase
+        .from("profiles")
+        .select("ativo")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (perfil && perfil.ativo === false) {
+        await supabase.auth.signOut();
+        throw new Error("Seu acesso está desativado. Fale com o administrador.");
+      }
       navigate({ to: "/calls" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível entrar.");
