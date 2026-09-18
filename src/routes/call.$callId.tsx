@@ -1,13 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, History, Mic, MicOff, MonitorUp, Square } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleHelp,
+  History,
+  Mic,
+  MicOff,
+  RefreshCw,
+  Radio,
+  Square,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { useTranscricao, type Falante } from "@/hooks/useTranscricao";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
 import {
   gerarSugestao,
   obterTokenDeepgram,
@@ -15,6 +31,7 @@ import {
   gerarResumoCall,
 } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/call/$callId")({
   head: () => ({
