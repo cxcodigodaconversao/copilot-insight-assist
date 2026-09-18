@@ -364,6 +364,12 @@ function Ligacoes() {
                 {c.encerrada_em ? "encerrada" : "em andamento"}
               </span>
             </span>
+            <ExcluirCall
+              callId={c.id}
+              nomeLead={c.nome_lead}
+              rotulo="ligação"
+              onExcluida={() => void qc.invalidateQueries({ queryKey: ["ligacoes-sdr"] })}
+            />
           </Link>
         ))}
       </div>

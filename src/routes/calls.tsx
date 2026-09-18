@@ -358,6 +358,12 @@ function Calls() {
                   {c.encerrada_em ? "encerrada" : "em andamento"}
                 </span>
               </span>
+              <ExcluirCall
+                callId={c.id}
+                nomeLead={c.nome_lead}
+                rotulo="call"
+                onExcluida={() => void qc.invalidateQueries({ queryKey: ["calls"] })}
+              />
             </Link>
           );
         })}
