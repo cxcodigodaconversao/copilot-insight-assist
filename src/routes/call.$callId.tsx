@@ -746,6 +746,13 @@ function CallAoVivo() {
             </p>
           )}
 
+          {!sugestao && perguntaParcial && (
+            <p className="mt-6 font-display text-3xl leading-snug text-primary">
+              {perguntaParcial}
+              <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-primary align-middle" />
+            </p>
+          )}
+
           {sugestao && (
             <div className="flex flex-1 flex-col">
               {(leadFalando || pensando) && (
@@ -754,10 +761,13 @@ function CallAoVivo() {
                 </p>
               )}
               <p
-                key={sugestao.fala ?? sugestao.proxima_pergunta}
+                key={perguntaParcial ? "digitando" : (sugestao.fala ?? sugestao.proxima_pergunta)}
                 className="mt-6 animate-in fade-in font-display text-3xl leading-snug text-primary duration-300"
               >
-                {sugestao.fala ?? sugestao.proxima_pergunta}
+                {perguntaParcial || (sugestao.fala ?? sugestao.proxima_pergunta)}
+                {perguntaParcial && (
+                  <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-primary align-middle" />
+                )}
               </p>
               {sugestaoAnterior && (
                 <p className="mt-4 text-sm text-muted-foreground/70">Antes: {sugestaoAnterior}</p>
