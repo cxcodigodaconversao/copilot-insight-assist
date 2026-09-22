@@ -69,9 +69,10 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
         .order("peso", { ascending: false }),
     ]);
 
-  const objecoes = (objecoesRes.data ?? []).filter(
-    (o) => o.oferta_id === null || o.oferta_id === ofertaId,
-  );
+  const todasObjecoes = objecoesRes.data ?? [];
+  const objecoes = temConteudoProprio(todasObjecoes, ofertaId)
+    ? todasObjecoes.filter((o) => o.oferta_id === ofertaId)
+    : todasObjecoes.filter((o) => o.oferta_id === null);
 
   // Regras: o valor cadastrado no produto sobrescreve o valor geral da mesma chave.
   const regras: Record<string, string> = {};
