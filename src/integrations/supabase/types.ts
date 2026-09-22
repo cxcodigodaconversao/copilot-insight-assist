@@ -499,8 +499,10 @@ export type Database = {
           base_id: string | null
           categoria: string
           created_at: string
+          etapa: string
           id: string
           o_que_identificar: string
+          obrigatoria: boolean
           oculto: boolean
           oferta_id: string | null
           ordem: number
@@ -512,8 +514,10 @@ export type Database = {
           base_id?: string | null
           categoria: string
           created_at?: string
+          etapa?: string
           id?: string
           o_que_identificar?: string
+          obrigatoria?: boolean
           oculto?: boolean
           oferta_id?: string | null
           ordem?: number
@@ -525,8 +529,10 @@ export type Database = {
           base_id?: string | null
           categoria?: string
           created_at?: string
+          etapa?: string
           id?: string
           o_que_identificar?: string
+          obrigatoria?: boolean
           oculto?: boolean
           oferta_id?: string | null
           ordem?: number

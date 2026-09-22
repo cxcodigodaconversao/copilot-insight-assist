@@ -31,6 +31,7 @@ import {
   gerarResumoCall,
 } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
+import { PROTOCOLO_COPILOTO } from "@/lib/fluxo-sdr";
 
 
 export const Route = createFileRoute("/call/$callId")({
@@ -69,6 +70,7 @@ type IdentidadeCerebro = {
   produto: string;
   cerebro_versao: string;
   request_id: string;
+  protocolo: string;
 };
 
 function Chip({ children }: { children: React.ReactNode }) {
@@ -209,7 +211,8 @@ function CallAoVivo() {
             ofertaId,
             cerebroVersao: versao,
             requestId,
-            turno: Math.floor(Date.now() / 1000),
+            turno: Date.now() * 100 + (numero % 100),
+            protocolo: PROTOCOLO_COPILOTO,
           }),
           signal: controller.signal,
         });
@@ -241,7 +244,8 @@ function CallAoVivo() {
               const identidadeOk =
                 evento.identidade?.oferta_id === ofertaId &&
                 evento.identidade?.cerebro_versao === versao &&
-                evento.identidade?.request_id === requestId;
+                evento.identidade?.request_id === requestId &&
+                evento.identidade?.protocolo === PROTOCOLO_COPILOTO;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
               if (resposta?.proxima_pergunta) {
@@ -290,7 +294,7 @@ function CallAoVivo() {
           abortRef.current?.abort();
           void analisarFalaCliente(falaAgrupada);
         }
-      }, 900);
+      }, 200);
     },
     [analisarFalaCliente, callId, chamarFala],
   );
@@ -653,30 +657,28 @@ function CallAoVivo() {
 
           {sugestao && (
             <div className="flex flex-1 flex-col">
-              <p className="text-base text-muted-foreground">
-                {pensando ? "Analisando a nova fala…" : sugestao.leitura}
-              </p>
+              {pensando && <p className="text-base text-muted-foreground">Analisando a nova fala…</p>}
               <p className="mt-6 font-display text-3xl leading-snug text-primary">
                 {sugestao.proxima_pergunta}
               </p>
-              <p className="mt-4 text-sm text-muted-foreground">{sugestao.porque}</p>
               <div className="mt-auto flex flex-wrap gap-2 pt-6">
-                <Chip>
-                  DISC {sugestao.perfil_disc?.tipo ?? "—"}
-                  {sugestao.perfil_disc?.confianca != null &&
-                    ` · ${Math.round(sugestao.perfil_disc.confianca * 100)}%`}
-                </Chip>
                 {call?.tipo === "sdr" ? (
                   <>
                     <Chip>Etapa {(sugestao.etapa_qualificacao ?? "—").replaceAll("_", " ")}</Chip>
-                    <Chip>Pontuação {sugestao.pontuacao_qualificacao ?? "—"}</Chip>
                     <Chip>{(sugestao.resultado_sugerido ?? "—").replaceAll("_", " ")}</Chip>
                   </>
                 ) : (
-                  <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
+                  <>
+                    <Chip>
+                      DISC {sugestao.perfil_disc?.tipo ?? "—"}
+                      {sugestao.perfil_disc?.confianca != null &&
+                        ` · ${Math.round(sugestao.perfil_disc.confianca * 100)}%`}
+                    </Chip>
+                    <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
+                    <Chip>{sugestao.temperatura ?? "—"}</Chip>
+                    <Chip>{(sugestao.sinal ?? "nenhum").replaceAll("_", " ")}</Chip>
+                  </>
                 )}
-                <Chip>{sugestao.temperatura ?? "—"}</Chip>
-                <Chip>{(sugestao.sinal ?? "nenhum").replaceAll("_", " ")}</Chip>
                 {pensando && <Chip>analisando…</Chip>}
               </div>
             </div>

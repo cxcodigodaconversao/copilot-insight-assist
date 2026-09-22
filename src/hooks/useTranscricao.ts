@@ -63,7 +63,7 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       url.searchParams.set("language", idioma || "pt-BR");
       url.searchParams.set("interim_results", "true");
       url.searchParams.set("smart_format", "true");
-      url.searchParams.set("endpointing", "400");
+      url.searchParams.set("endpointing", "250");
       url.searchParams.set("encoding", "linear16");
       url.searchParams.set("sample_rate", "16000");
       url.searchParams.set("channels", "1");

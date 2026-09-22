@@ -1,6 +1,7 @@
 // Server-only: monta o system prompt do Copiloto CX e fala com a API da Anthropic.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { ETAPAS_SDR } from "./fluxo-sdr";
 
 type DB = SupabaseClient<Database>;
 
@@ -137,7 +138,7 @@ function montarSystemPromptSdr(ctx: CerebroContexto): string {
   const perguntas = ctx.perguntas
     .map(
       (p) =>
-        `[ID ${p.id}] [${p.categoria}] ${p.pergunta}\n  O que identificar: ${p.o_que_identificar}\n  Se a resposta for vaga: ${p.pergunta_followup ?? ""}`,
+        `[ID ${p.id}] [ETAPA ${p.etapa}] [${p.categoria}] ${p.pergunta}\n  O que identificar: ${p.o_que_identificar}\n  Se a resposta for vaga: ${p.pergunta_followup ?? ""}`,
     )
     .join("\n");
 
@@ -185,7 +186,7 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {
   "acao": "manter | orientar | alerta",
-  "etapa_qualificacao": "apresentacao | motivo | diagnostico | dor_implicacao | interesse | agendamento | validacao | compromisso | encerramento",
+  "etapa_qualificacao": "${ETAPAS_SDR.join(" | ")}",
   "perguntas_respondidas_neste_turno": ["IDs exatos das perguntas respondidas pela fala atual"],
   "proxima_pergunta": "uma única orientação pronta para o SDR falar agora",
   "resultado_sugerido": "seguir_qualificando | agendar_agora | desqualificar",

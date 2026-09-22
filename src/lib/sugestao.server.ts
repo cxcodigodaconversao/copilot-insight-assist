@@ -7,6 +7,14 @@ import {
   extrairJson,
   montarSystemPrompt,
 } from "./cerebro.server";
+import {
+  ETAPAS_SDR,
+  PROTOCOLO_COPILOTO,
+  ROTULOS_ETAPAS_SDR,
+  etapaSdrValida,
+  indiceEtapaSdr,
+  type EtapaSdr,
+} from "./fluxo-sdr";
 
 type Saida = { [k: string]: Json };
 
@@ -18,22 +26,12 @@ type EstadoQualificacao = {
   respostas_coletadas: Record<string, string>;
   ultima_orientacao: string;
   lembrete: string | null;
+  pergunta_pendente_id: string | null;
+  perguntas_puladas: string[];
   oferta_id?: string;
   cerebro_versao?: string;
   turno?: number;
 };
-
-const ETAPAS = [
-  "apresentacao",
-  "motivo",
-  "diagnostico",
-  "dor_implicacao",
-  "interesse",
-  "agendamento",
-  "validacao",
-  "compromisso",
-  "encerramento",
-] as const;
 
 function textoArray(valor: Json | undefined): string[] {
   if (!Array.isArray(valor)) return [];
@@ -53,19 +51,52 @@ function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQua
         : {},
     ultima_orientacao: typeof bruto["ultima_orientacao"] === "string" ? bruto["ultima_orientacao"] : "",
     lembrete: typeof bruto["lembrete"] === "string" ? bruto["lembrete"] : null,
+    pergunta_pendente_id:
+      typeof bruto["pergunta_pendente_id"] === "string" ? bruto["pergunta_pendente_id"] : null,
+    perguntas_puladas: textoArray(bruto["perguntas_puladas"]),
     oferta_id: ofertaId,
     cerebro_versao: versao,
     turno: typeof bruto["turno"] === "number" ? bruto["turno"] : 0,
   };
 }
 
-function indiceEtapa(etapa: string): number {
-  const indice = ETAPAS.indexOf(etapa as (typeof ETAPAS)[number]);
-  return indice < 0 ? 0 : indice;
-}
-
 function normalizar(texto: string): string {
   return texto.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\W+/g, " ").trim();
+}
+
+function pareceComentarioTecnico(texto: string): boolean {
+  const t = normalizar(texto);
+  return [
+    "copiloto",
+    "inteligencia artificial",
+    "esta travando",
+    "nao esta indo",
+    "mesma mensagem",
+    "na tela",
+    "tirar print",
+    "conseguir printar",
+    "respeitando o roteiro",
+    "proximas perguntas",
+  ].some((trecho) => t.includes(trecho));
+}
+
+type PerguntaFluxo = {
+  id: string;
+  ordem: number;
+  etapa: string;
+  pergunta: string;
+  pergunta_followup: string | null;
+  o_que_identificar: string;
+  obrigatoria: boolean;
+};
+
+function etapaDaPergunta(pergunta: PerguntaFluxo | undefined): EtapaSdr {
+  if (pergunta && etapaSdrValida(pergunta.etapa)) return pergunta.etapa;
+  return "encerramento";
+}
+
+function idsDoModelo(valor: Json | undefined, validos: Set<string>): string[] {
+  return textoArray(valor).filter((id) => validos.has(id));
 }
 
 function clienteComToken(token: string) {
@@ -124,14 +155,24 @@ export async function responderSugestao(request: Request): Promise<Response> {
     cerebroVersao?: string;
     requestId?: string;
     turno?: number;
+    protocolo?: string;
   };
   const callId = body.callId ?? "";
   const texto = (body.texto ?? "").trim();
   if (!callId || !texto) return new Response("Requisição inválida", { status: 400 });
+  if (body.protocolo !== PROTOCOLO_COPILOTO) {
+    return new Response("O Copiloto foi atualizado. Recarregue esta página antes de continuar.", {
+      status: 409,
+    });
+  }
 
   const inicio = Date.now();
 
-  const { data: call } = await supabase.from("calls").select("*").eq("id", callId).maybeSingle();
+  const { data: call } = await supabase
+    .from("calls")
+    .select("id, tipo, oferta_id, nome_lead, origem_lead, notas_crm, objetivo, iniciada_em, estado_qualificacao")
+    .eq("id", callId)
+    .maybeSingle();
   if (!call) return new Response("Call não encontrada", { status: 404 });
   if (call.tipo === "sdr" && (!call.oferta_id || body.ofertaId !== call.oferta_id)) {
     return new Response("O produto da ligação mudou. Reabra a ligação antes de continuar.", {
@@ -139,7 +180,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     });
   }
 
-  const ctx = await carregarCerebro(supabase, call.oferta_id);
+  const ctx = await carregarCerebro(supabase, call.oferta_id, true);
   if (call.tipo === "sdr" && body.cerebroVersao !== ctx.versao) {
     return new Response("O cérebro deste produto foi atualizado. Reabra a ligação.", { status: 409 });
   }
@@ -184,73 +225,88 @@ export async function responderSugestao(request: Request): Promise<Response> {
   const codificador = new TextEncoder();
   const linha = (obj: unknown) => codificador.encode(`${JSON.stringify(obj)}\n`);
 
-  if (texto.split(/\s+/).length < minPalavras) {
+  if (call.tipo !== "sdr" && texto.split(/\s+/).length < minPalavras) {
     return new Response(linha({ tipo: "final", resposta: { acao: "manter" } }), {
       headers: { "content-type": "application/x-ndjson", "cache-control": "no-store" },
     });
   }
 
   const ultimas = (falasRes.data ?? []).slice(0, 10).reverse();
-  const minutos = Math.max(
-    0,
-    Math.round((Date.now() - new Date(call.iniciada_em).getTime()) / 60000),
-  );
-
-  const perguntasDisponiveis = ctx.perguntas.map((p) => ({
+  const perguntasDisponiveis: PerguntaFluxo[] = ctx.perguntas.map((p) => ({
     id: p.id,
     ordem: p.ordem,
-    categoria: p.categoria,
+    etapa: p.etapa,
     pergunta: p.pergunta,
+    pergunta_followup: p.pergunta_followup,
+    o_que_identificar: p.o_que_identificar,
+    obrigatoria: p.obrigatoria,
   }));
-  const userMessage = `ESTADO DA CONVERSA — FONTE DE VERDADE
-${JSON.stringify(estado)}
+  const respondidasAntes = new Set(estado.perguntas_respondidas);
+  const pendente =
+    perguntasDisponiveis.find((p) => p.id === estado.pergunta_pendente_id) ??
+    perguntasDisponiveis.find((p) => !respondidasAntes.has(p.id));
+  const candidatas = perguntasDisponiveis.filter((p) => !respondidasAntes.has(p.id)).slice(0, 5);
+  const comentarioTecnico = call.tipo === "sdr" && pareceComentarioTecnico(texto);
+  const userMessageSdr = `PERGUNTA QUE ESTAVA PENDENTE
+${JSON.stringify(pendente ?? null)}
 
-PERGUNTAS DESTE PRODUTO
-${JSON.stringify(perguntasDisponiveis)}
+PRÓXIMAS PERGUNTAS POSSÍVEIS
+${JSON.stringify(candidatas)}
 
-Nunca repita IDs presentes em perguntas_respondidas. A etapa retornada não pode ser anterior a etapa_atual.
+CONTEXTO IMEDIATO
+${ultimas.slice(-6).map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.texto}`).join("\n")}
 
-CONTEXTO DO LEAD
+FALA A CLASSIFICAR
+${texto}`;
+  const systemSdr = `Você é um classificador de respostas de uma ligação SDR.
+Sua única tarefa é identificar quais perguntas cadastradas a FALA A CLASSIFICAR respondeu de forma útil.
+Use somente IDs presentes em PRÓXIMAS PERGUNTAS POSSÍVEIS.
+Compare cada informação da fala com TODAS as próximas perguntas, não apenas com a pergunta pendente.
+Uma fala pode responder várias perguntas, inclusive perguntas que ainda não foram feitas. Marque todos os IDs cobertos.
+"Sim", "correto" e equivalentes respondem a uma confirmação pendente.
+Não escolha a próxima pergunta e não escreva orientação comercial.
+Responda somente JSON válido e curto, exatamente: {"ids_respondidos":["id"],"resposta_vaga":false}.
+Se nada foi respondido, use {"ids_respondidos":[],"resposta_vaga":true}.`;
+  const minutos = Math.max(0, Math.round((Date.now() - new Date(call.iniciada_em).getTime()) / 60000));
+  const userMessageCloser = `CONTEXTO DO LEAD
 Nome: ${call.nome_lead || "(ainda não cadastrado)"}
 Origem: ${call.origem_lead}
 O que já sabemos: ${call.notas_crm}
-
-VENDEDOR: ${call.tipo}
 OBJETIVO DESTA CALL: ${call.objetivo}
 TEMPO DECORRIDO: ${minutos} min
-
-TRANSCRIÇÃO RECENTE (mais recente por último)
+TRANSCRIÇÃO RECENTE
 ${ultimas.map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.texto}`).join("\n")}
-
 ÚLTIMA FALA DO CLIENTE
 ${texto}`;
-
-  const system = montarSystemPrompt(ctx, call.tipo === "sdr" ? "sdr" : "closer");
+  const system = call.tipo === "sdr" ? systemSdr : montarSystemPrompt(ctx, "closer");
+  const userMessage = call.tipo === "sdr" ? userMessageSdr : userMessageCloser;
   const model =
     ctx.config["modelo_claude_rapido"] ||
     ctx.config["modelo_claude"] ||
     "claude-haiku-4-5-20251001";
-  const maxTokens = Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
+  const maxTokens = call.tipo === "sdr" ? 100 : Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
 
   const stream = new ReadableStream({
     async start(controller) {
       let ultimaParcial = "";
       let primeiraPerguntaMs: number | null = null;
       try {
-        const bruto = await chamarClaudeStream({
-          system,
-          model,
-          maxTokens,
-          messages: [{ role: "user", content: userMessage }],
-          signal: request.signal,
-          onTexto: (_p, acumulado) => {
-            const parcial = perguntaParcial(acumulado);
-            if (parcial && parcial !== ultimaParcial) {
-              if (primeiraPerguntaMs === null) primeiraPerguntaMs = Date.now() - inicio;
-              ultimaParcial = parcial;
-            }
-          },
-        });
+        const bruto = comentarioTecnico
+          ? '{"ids_respondidos":[],"resposta_vaga":true}'
+          : await chamarClaudeStream({
+              system,
+              model,
+              maxTokens,
+              messages: [{ role: "user", content: userMessage }],
+              signal: request.signal,
+              onTexto: (_p, acumulado) => {
+                const parcial = perguntaParcial(acumulado);
+                if (parcial && parcial !== ultimaParcial) {
+                  if (primeiraPerguntaMs === null) primeiraPerguntaMs = Date.now() - inicio;
+                  ultimaParcial = parcial;
+                }
+              },
+            });
 
         let resposta: Saida;
         try {
@@ -262,34 +318,66 @@ ${texto}`;
         }
 
         if (call.tipo === "sdr") {
-          const atual = indiceEtapa(estado.etapa_atual);
-          const proposta = typeof resposta["etapa_qualificacao"] === "string" ? indiceEtapa(resposta["etapa_qualificacao"]) : atual;
-          const indiceFinal = Math.max(atual, proposta);
-          const etapaFinal = ETAPAS[indiceFinal] ?? ETAPAS[atual] ?? "apresentacao";
-          const idsValidos = new Set(ctx.perguntas.map((p) => p.id));
-          const novasRespondidas = textoArray(resposta["perguntas_respondidas_neste_turno"]).filter((id) => idsValidos.has(id));
+          const idsValidos = new Set(perguntasDisponiveis.map((p) => p.id));
+          const novasRespondidas = comentarioTecnico
+            ? []
+            : idsDoModelo(resposta["ids_respondidos"], idsValidos);
           const perguntasRespondidas = [...new Set([...estado.perguntas_respondidas, ...novasRespondidas])];
-          let orientacao = typeof resposta["proxima_pergunta"] === "string" ? resposta["proxima_pergunta"].trim() : "";
-          if (normalizar(orientacao) === normalizar(estado.ultima_orientacao)) orientacao = "";
-          const pulou = indiceFinal > atual + 1 ? ETAPAS[atual + 1] : null;
-          const lembreteModelo = typeof resposta["lembrete_etapa_pulada"] === "string" ? resposta["lembrete_etapa_pulada"] : null;
-          const lembrete = pulou ? `Você pulou a etapa de ${pulou.replaceAll("_", " ")}.` : lembreteModelo;
-          const concluidas = ETAPAS.slice(0, indiceFinal).filter((item) => !estado.etapas_concluidas.includes(item));
+          const ordensNovas = perguntasDisponiveis
+            .filter((p) => novasRespondidas.includes(p.id))
+            .map((p) => p.ordem);
+          const maiorOrdemNova = ordensNovas.length ? Math.max(...ordensNovas) : null;
+          const puladasNesteTurno = maiorOrdemNova == null
+            ? []
+            : perguntasDisponiveis.filter(
+                (p) =>
+                  p.obrigatoria &&
+                  p.ordem < maiorOrdemNova &&
+                  !perguntasRespondidas.includes(p.id) &&
+                  !estado.perguntas_puladas.includes(p.id),
+              );
+          const perguntasPuladas = [
+            ...new Set([...estado.perguntas_puladas, ...puladasNesteTurno.map((p) => p.id)]),
+          ].filter((id) => !novasRespondidas.includes(id));
+          const idsEncerrados = new Set([...perguntasRespondidas, ...perguntasPuladas]);
+          const proxima = perguntasDisponiveis.find((p) => !idsEncerrados.has(p.id));
+          const respostaVaga = resposta["resposta_vaga"] === true;
+          const pendenteJaOrientada =
+            pendente && normalizar(estado.ultima_orientacao) === normalizar(pendente.pergunta);
+          const orientacao = comentarioTecnico
+            ? ""
+            : respostaVaga && pendenteJaOrientada && pendente.pergunta_followup
+              ? pendente.pergunta_followup
+              : proxima?.pergunta ?? "Confirme o agendamento e o compromisso do lead.";
+          const etapaFinal = proxima ? etapaDaPergunta(proxima) : "compromisso";
+          const etapaPulada = puladasNesteTurno[0] ? etapaDaPergunta(puladasNesteTurno[0]) : null;
+          const lembrete = etapaPulada
+            ? `Você pulou a etapa de ${ROTULOS_ETAPAS_SDR[etapaPulada].toLocaleLowerCase("pt-BR")}.`
+            : null;
+          const indiceFinal = indiceEtapaSdr(etapaFinal);
+          const concluidas = ETAPAS_SDR.slice(0, indiceFinal);
           estado = {
             ...estado,
             etapa_atual: etapaFinal,
             etapas_concluidas: [...new Set([...estado.etapas_concluidas, ...concluidas])],
             perguntas_respondidas: perguntasRespondidas,
+            perguntas_puladas: perguntasPuladas,
+            pergunta_pendente_id: proxima?.id ?? null,
+            respostas_coletadas: novasRespondidas.reduce(
+              (coletadas, id) => ({ ...coletadas, [id]: texto }),
+              estado.respostas_coletadas,
+            ),
             ultima_orientacao: orientacao || estado.ultima_orientacao,
             lembrete,
             turno,
           };
           resposta = {
-            ...resposta,
-            acao: orientacao ? resposta["acao"] ?? "orientar" : "manter",
+            acao: orientacao ? "orientar" : "manter",
             etapa_qualificacao: etapaFinal,
             proxima_pergunta: orientacao,
             alerta: lembrete,
+            resultado_sugerido: proxima ? "seguir_qualificando" : "agendar_agora",
+            perguntas_respondidas_neste_turno: novasRespondidas,
           };
           const { data: concluido } = await supabase.rpc("concluir_turno_copiloto", {
             _call_id: callId,
@@ -306,6 +394,7 @@ ${texto}`;
           cerebro_versao: ctx.versao,
           request_id: body.requestId ?? "",
           primeira_pergunta_ms: primeiraPerguntaMs,
+          protocolo: PROTOCOLO_COPILOTO,
         };
         const { error: erroSugestao } = await supabase.from("sugestoes").insert({
           call_id: callId,
