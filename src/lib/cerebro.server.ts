@@ -356,7 +356,7 @@ export async function chamarClaudeStream(opts: {
       system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
       messages: opts.messages,
     }),
-    signal: opts.signal,
+    signal: opts.signal ?? null,
   });
 
   if (!res.ok || !res.body) {
