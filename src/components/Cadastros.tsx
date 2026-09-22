@@ -618,7 +618,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
             <div key={p.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
               {ofertaId && (
                 <div className="flex items-center gap-2">
-                  <Etiqueta proprio={p.oferta_id !== null} />
+                  <Etiqueta proprio={p.oferta_id !== null} emUso={!temProprios} />
                   {p.base_id && (
                     <Button
                       type="button"
