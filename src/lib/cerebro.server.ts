@@ -359,6 +359,7 @@ export async function chamarClaudeStream(opts: {
   messages: AnthropicMsg[];
   model: string;
   maxTokens: number;
+  temperatura?: number;
   onTexto: (pedaco: string, acumulado: string) => void;
   signal?: AbortSignal;
 }): Promise<string> {
