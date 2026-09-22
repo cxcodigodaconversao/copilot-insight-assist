@@ -99,7 +99,15 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
           };
           const texto = msg.channel?.alternatives?.[0]?.transcript?.trim();
           if (!texto) return;
-          if (msg.speech_final || msg.is_final) onFinal(falante, texto);
+          // O microfone às vezes capta o som que sai da aba: isso é eco, não fala do vendedor.
+          if (falante === "vendedor" && ehEcoDoCliente(texto, falasDoCliente.current)) return;
+          if (falante === "cliente") {
+            falasDoCliente.current = [
+              ...falasDoCliente.current.filter((f) => Date.now() - f.em < 8000),
+              { texto, em: Date.now() },
+            ];
+          }
+          if (msg.speech_final || msg.is_final) onFinal(falante, texto, msg.speech_final === true);
           else onParcial(falante, texto);
         } catch {
           /* ignora mensagens de controle */
