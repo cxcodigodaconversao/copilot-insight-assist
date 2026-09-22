@@ -135,6 +135,7 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       void c.ctx.close();
     }
     canais.current = [];
+    falasDoCliente.current = [];
     niveis.current = { vendedor: 0, cliente: 0 };
     setNivelVendedor(0);
     setNivelCliente(0);
