@@ -1,0 +1,1 @@
+ALTER TABLE public.calls ALTER COLUMN turno_copiloto TYPE bigint USING turno_copiloto::bigint;
