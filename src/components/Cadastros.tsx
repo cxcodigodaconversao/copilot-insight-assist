@@ -7,6 +7,8 @@ import { convidarMembro } from "@/lib/equipe.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { temConteudoProprio } from "@/lib/qualificacao";
 
 export type TabelaCadastro =
   | "times"
@@ -449,14 +451,22 @@ function mesclarHeranca<T extends Heranca>(linhas: T[], ofertaId: string | null)
   return [...globais, ...doProduto];
 }
 
-function Etiqueta({ proprio }: { proprio: boolean }) {
-  return proprio ? (
-    <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-      Personalizado deste produto
-    </span>
-  ) : (
-    <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-      Padrão
+function Etiqueta({ proprio, emUso = true }: { proprio: boolean; emUso?: boolean }) {
+  if (proprio) {
+    return (
+      <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+        Personalizado deste produto
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground",
+        !emUso && "opacity-60",
+      )}
+    >
+      {emUso ? "Padrão" : "Padrão — não usado neste produto"}
     </span>
   );
 }
@@ -487,6 +497,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
   });
 
   const lista = mesclarHeranca(data ?? [], ofertaId);
+  const temProprios = temConteudoProprio(data ?? [], ofertaId);
 
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["perguntas-qualificacao"] });
@@ -607,7 +618,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
             <div key={p.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
               {ofertaId && (
                 <div className="flex items-center gap-2">
-                  <Etiqueta proprio={p.oferta_id !== null} />
+                  <Etiqueta proprio={p.oferta_id !== null} emUso={!temProprios} />
                   {p.base_id && (
                     <Button
                       type="button"
@@ -710,6 +721,7 @@ function CriteriosQualificacao({ ofertaId }: { ofertaId: string | null }) {
   });
 
   const lista = mesclarHeranca(data ?? [], ofertaId);
+  const temProprios = temConteudoProprio(data ?? [], ofertaId);
 
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["criterios-qualificacao"] });
@@ -811,7 +823,7 @@ function CriteriosQualificacao({ ofertaId }: { ofertaId: string | null }) {
             <div key={c.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
               {ofertaId && (
                 <div className="flex items-center gap-2">
-                  <Etiqueta proprio={c.oferta_id !== null} />
+                  <Etiqueta proprio={c.oferta_id !== null} emUso={!temProprios} />
                   {c.base_id && (
                     <Button
                       type="button"

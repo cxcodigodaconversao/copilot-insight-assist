@@ -26,6 +26,7 @@ import {
 import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
 import { obterTokenDeepgram, registrarFala, gerarResumoCall } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
+import { resolverPorProduto } from "@/lib/qualificacao";
 
 
 export const Route = createFileRoute("/call/$callId")({
@@ -123,16 +124,17 @@ function CallAoVivo() {
 
 
   const { data: perguntas } = useQuery({
-    queryKey: ["perguntas-qualificacao-ativas"],
-    enabled: ehSdr,
+    queryKey: ["perguntas-qualificacao-ativas", call?.oferta_id ?? "geral"],
+    enabled: ehSdr && !!call,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("perguntas_qualificacao")
-        .select("id, categoria, pergunta")
+        .select("id, categoria, pergunta, oferta_id, oculto")
         .eq("ativo", true)
         .order("ordem");
       if (error) throw error;
-      return data ?? [];
+      // Cada produto usa somente o que é dele; sem cadastro próprio, usa o padrão geral.
+      return resolverPorProduto(data ?? [], call?.oferta_id ?? null);
     },
   });
 
@@ -510,6 +512,15 @@ function CallAoVivo() {
             <div className="mt-3 max-h-40 overflow-y-auto border-t border-border pt-3">
               <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
                 Roteiro de qualificação
+                {call?.oferta_id ? (
+                  <span className="ml-2 normal-case tracking-normal text-primary">
+                    {call.ofertas?.nome}
+                  </span>
+                ) : (
+                  <span className="ml-2 normal-case tracking-normal text-destructive">
+                    nenhum produto escolhido — usando o padrão geral
+                  </span>
+                )}
               </p>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 {perguntas.map((p) => (

@@ -1,6 +1,7 @@
 // Server-only: monta o system prompt do Copiloto CX e fala com a API da Anthropic.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { resolverPorProduto, temConteudoProprio } from "./qualificacao";
 
 type DB = SupabaseClient<Database>;
 
@@ -21,18 +22,6 @@ export type CerebroContexto = {
   regras: Record<string, string>;
   config: Record<string, string>;
 };
-
-type LinhaHeranca = { id: string; oferta_id: string | null; oculto: boolean; base_id: string | null };
-
-// Mescla itens gerais (oferta_id null) com os itens exclusivos do produto.
-// Um item do produto com base_id substitui o item geral correspondente;
-// com oculto = true, apenas remove o item geral daquele produto.
-function mesclarPorProduto<T extends LinhaHeranca>(linhas: T[], ofertaId: string | null): T[] {
-  const doProduto = ofertaId ? linhas.filter((l) => l.oferta_id === ofertaId) : [];
-  const substituidos = new Set(doProduto.map((l) => l.base_id).filter(Boolean) as string[]);
-  const globais = linhas.filter((l) => l.oferta_id === null && !substituidos.has(l.id));
-  return [...globais, ...doProduto.filter((l) => !l.oculto)];
-}
 
 // Cache curto por produto: durante uma ligação o cérebro não muda,
 // e montá-lo custa 7 consultas ao banco a cada fala do cliente.
@@ -80,9 +69,10 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
         .order("peso", { ascending: false }),
     ]);
 
-  const objecoes = (objecoesRes.data ?? []).filter(
-    (o) => o.oferta_id === null || o.oferta_id === ofertaId,
-  );
+  const todasObjecoes = objecoesRes.data ?? [];
+  const objecoes = temConteudoProprio(todasObjecoes, ofertaId)
+    ? todasObjecoes.filter((o) => o.oferta_id === ofertaId)
+    : todasObjecoes.filter((o) => o.oferta_id === null);
 
   // Regras: o valor cadastrado no produto sobrescreve o valor geral da mesma chave.
   const regras: Record<string, string> = {};
@@ -99,8 +89,8 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
     oferta: (ofertaRes.data as Oferta | null) ?? null,
     objecoes,
     perfis: perfisRes.data ?? [],
-    perguntas: mesclarPorProduto(perguntasRes.data ?? [], ofertaId),
-    criterios: mesclarPorProduto(criteriosRes.data ?? [], ofertaId),
+    perguntas: resolverPorProduto(perguntasRes.data ?? [], ofertaId),
+    criterios: resolverPorProduto(criteriosRes.data ?? [], ofertaId),
     regras,
     config,
   };
