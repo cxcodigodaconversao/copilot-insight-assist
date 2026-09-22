@@ -330,7 +330,7 @@ ${texto}`;
           system,
           model,
           maxTokens,
-          temperatura: call.tipo === "sdr" ? 0.6 : undefined,
+          ...(call.tipo === "sdr" ? { temperatura: 0.6 } : {}),
           messages: [{ role: "user", content: userMessage }],
           signal: request.signal,
           onTexto: () => {},
