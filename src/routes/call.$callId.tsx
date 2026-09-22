@@ -723,21 +723,38 @@ function CallAoVivo() {
 
           {!sugestao && !perguntaParcial && (
             <p className="text-muted-foreground">
-              {pensando ? "Analisando a fala do cliente…" : "Aguardando a primeira fala do cliente."}
+              {leadFalando || pensando
+                ? "Ouvindo o cliente…"
+                : "Aguardando a primeira fala do cliente."}
             </p>
           )}
 
           {sugestao && (
             <div className="flex flex-1 flex-col">
-              {pensando && <p className="text-base text-muted-foreground">Analisando a nova fala…</p>}
-              <p className="mt-6 font-display text-3xl leading-snug text-primary">
-                {sugestao.proxima_pergunta}
+              {(leadFalando || pensando) && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-2 animate-pulse rounded-full bg-primary" /> ouvindo…
+                </p>
+              )}
+              <p
+                key={sugestao.fala ?? sugestao.proxima_pergunta}
+                className="mt-6 animate-in fade-in font-display text-3xl leading-snug text-primary duration-300"
+              >
+                {sugestao.fala ?? sugestao.proxima_pergunta}
               </p>
+              {sugestaoAnterior && (
+                <p className="mt-4 text-sm text-muted-foreground/70">Antes: {sugestaoAnterior}</p>
+              )}
               <div className="mt-auto flex flex-wrap gap-2 pt-6">
                 {call?.tipo === "sdr" ? (
                   <>
-                    <Chip>Etapa {(sugestao.etapa_qualificacao ?? "—").replaceAll("_", " ")}</Chip>
-                    <Chip>{(sugestao.resultado_sugerido ?? "—").replaceAll("_", " ")}</Chip>
+                    <Chip>
+                      {sugestao.intencao
+                        ? (ROTULOS_INTENCOES[sugestao.intencao as IntencaoCopiloto] ??
+                          sugestao.intencao.replaceAll("_", " "))
+                        : "orientando"}
+                    </Chip>
+                    {sugestao.objetivo_texto && <Chip>buscando: {sugestao.objetivo_texto}</Chip>}
                   </>
                 ) : (
                   <>
