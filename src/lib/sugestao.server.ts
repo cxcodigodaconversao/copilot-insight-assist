@@ -6,13 +6,14 @@ import {
   chamarClaudeStream,
   extrairJson,
   montarSystemPrompt,
+  textoCerebroProduto,
 } from "./cerebro.server";
 import {
-  ETAPAS_SDR,
   PROTOCOLO_COPILOTO,
-  ROTULOS_ETAPAS_SDR,
+  ehEcoDoCliente,
   etapaSdrValida,
-  indiceEtapaSdr,
+  intencaoValida,
+  normalizarFala,
   type EtapaSdr,
 } from "./fluxo-sdr";
 
@@ -24,7 +25,9 @@ type EstadoQualificacao = {
   perguntas_respondidas: string[];
   criterios_atendidos: string[];
   respostas_coletadas: Record<string, string>;
+  fatos_do_lead: Record<string, string>;
   ultima_orientacao: string;
+  ultima_intencao: string | null;
   lembrete: string | null;
   pergunta_pendente_id: string | null;
   perguntas_puladas: string[];
@@ -38,6 +41,16 @@ function textoArray(valor: Json | undefined): string[] {
   return valor.filter((item): item is string => typeof item === "string");
 }
 
+function mapaTexto(valor: Json | undefined): Record<string, string> {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+  const saida: Record<string, string> = {};
+  for (const [chave, item] of Object.entries(valor)) {
+    if (typeof item === "string") saida[chave] = item;
+    else if (typeof item === "number" || typeof item === "boolean") saida[chave] = String(item);
+  }
+  return saida;
+}
+
 function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQualificacao {
   const bruto = valor && typeof valor === "object" && !Array.isArray(valor) ? valor : {};
   return {
@@ -45,11 +58,10 @@ function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQua
     etapas_concluidas: textoArray(bruto["etapas_concluidas"]),
     perguntas_respondidas: textoArray(bruto["perguntas_respondidas"]),
     criterios_atendidos: textoArray(bruto["criterios_atendidos"]),
-    respostas_coletadas:
-      bruto["respostas_coletadas"] && typeof bruto["respostas_coletadas"] === "object" && !Array.isArray(bruto["respostas_coletadas"])
-        ? (bruto["respostas_coletadas"] as Record<string, string>)
-        : {},
+    respostas_coletadas: mapaTexto(bruto["respostas_coletadas"]),
+    fatos_do_lead: mapaTexto(bruto["fatos_do_lead"]),
     ultima_orientacao: typeof bruto["ultima_orientacao"] === "string" ? bruto["ultima_orientacao"] : "",
+    ultima_intencao: typeof bruto["ultima_intencao"] === "string" ? bruto["ultima_intencao"] : null,
     lembrete: typeof bruto["lembrete"] === "string" ? bruto["lembrete"] : null,
     pergunta_pendente_id:
       typeof bruto["pergunta_pendente_id"] === "string" ? bruto["pergunta_pendente_id"] : null,
@@ -60,43 +72,18 @@ function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQua
   };
 }
 
-function normalizar(texto: string): string {
-  return texto.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\W+/g, " ").trim();
-}
-
-function pareceComentarioTecnico(texto: string): boolean {
-  const t = normalizar(texto);
-  return [
-    "copiloto",
-    "inteligencia artificial",
-    "esta travando",
-    "nao esta indo",
-    "mesma mensagem",
-    "na tela",
-    "tirar print",
-    "conseguir printar",
-    "respeitando o roteiro",
-    "proximas perguntas",
-  ].some((trecho) => t.includes(trecho));
-}
-
-type PerguntaFluxo = {
+type ItemRoteiro = {
   id: string;
   ordem: number;
   etapa: string;
-  pergunta: string;
-  pergunta_followup: string | null;
-  o_que_identificar: string;
+  objetivo: string;
+  pergunta_exemplo: string;
   obrigatoria: boolean;
 };
 
-function etapaDaPergunta(pergunta: PerguntaFluxo | undefined): EtapaSdr {
-  if (pergunta && etapaSdrValida(pergunta.etapa)) return pergunta.etapa;
-  return "encerramento";
-}
-
-function idsDoModelo(valor: Json | undefined, validos: Set<string>): string[] {
-  return textoArray(valor).filter((id) => validos.has(id));
+function etapaDoItem(item: ItemRoteiro | undefined): EtapaSdr {
+  if (item && etapaSdrValida(item.etapa)) return item.etapa;
+  return "compromisso";
 }
 
 function clienteComToken(token: string) {
@@ -117,26 +104,40 @@ function clienteComToken(token: string) {
   });
 }
 
-/** Extrai o valor de "proxima_pergunta" de um JSON ainda incompleto. */
-function perguntaParcial(texto: string): string | null {
-  const i = texto.indexOf('"proxima_pergunta"');
-  if (i < 0) return null;
-  const aspas = texto.indexOf('"', texto.indexOf(":", i) + 1);
-  if (aspas < 0) return null;
-  let saida = "";
-  for (let k = aspas + 1; k < texto.length; k++) {
-    const c = texto[k];
-    if (c === "\\") {
-      const prox = texto[k + 1];
-      saida += prox === "n" ? " " : (prox ?? "");
-      k++;
-      continue;
-    }
-    if (c === '"') break;
-    saida += c;
-  }
-  return saida.trim() || null;
-}
+const SYSTEM_COPILOTO_SDR = `Você é o copiloto de um vendedor (SDR) durante uma ligação ao vivo. Você ouve a conversa e escreve a PRÓXIMA FALA que o vendedor vai ler em voz alta, agora, para o lead.
+
+Pense como o melhor vendedor consultivo do Brasil: interessado de verdade na pessoa, leve, caloroso, curioso, que escuta mais do que fala e conduz sem parecer que está conduzindo. A conversa é um bate-papo, não um interrogatório.
+
+COMO DECIDIR A FALA (nesta ordem):
+1. O lead fez uma pergunta ou dúvida? Responda primeiro, de forma curta e direta, usando SOMENTE o CÉREBRO DO PRODUTO. Depois faça uma ponte natural para uma pergunta do roteiro.
+2. O lead demonstrou algo (entusiasmo, receio, pressa, uma conquista, uma dor)? Reaja a isso com humanidade antes de seguir.
+3. O lead deu uma informação? Mostre que ouviu (cite algo que ele disse) e aprofunde ou avance.
+4. Só então avance para o item pendente do ROTEIRO que se encaixa mais naturalmente agora, não necessariamente o próximo da lista.
+
+REGRAS DA FALA:
+- 1 a 3 frases, até 40 palavras. É para ser lida em voz alta em segundos.
+- Português do Brasil falado: "pra", "você", "a gente", "né". Nada de linguagem de e-mail ou de robô.
+- Termine, quase sempre, com UMA pergunta aberta. Nunca duas perguntas seguidas.
+- Use o nome do lead às vezes, não em toda fala.
+- Nunca repita uma pergunta que já foi respondida (veja FICHA DO LEAD).
+- Nunca invente números, datas, preços, percentuais, prazos, certificações ou condições. Se a resposta não está no CÉREBRO DO PRODUTO, diga com naturalidade que vai confirmar/explicar em detalhe e conduza de volta (ex.: "isso eu te explico direitinho já já, mas antes me conta...").
+- Não prometa o que não está cadastrado. Entusiasmo sim, mentira não.
+
+ESTABILIDADE:
+- Você recebe SUGESTAO_ATUAL (o que já está na tela). Se o que o lead acabou de dizer ainda é bem atendido por ela, devolva "manter_atual": true e repita a mesma fala.
+- Só troque se a nova fala do lead mudar o que deveria ser dito.
+
+MARCAÇÃO DO ROTEIRO:
+- "itens_cobertos": só ids cuja informação o LEAD de fato deu nesta fala. Confirmações curtas ("isso", "sim") só valem para a pergunta que o vendedor acabou de fazer. Perguntas do lead não cobrem nada.
+
+EXEMPLO
+Lead: "Preenchi e queria entender melhor como funciona a bolsa."
+RUIM: "E dentro dessa área, você tem pego casos de bruxismo ou de dor orofacial?"
+BOM (com dados da bolsa no cérebro): "Que bom que você se inscreveu! A bolsa funciona assim: [resumo do cérebro]. Pra eu ver se faz sentido pro seu momento, me conta: hoje você atua em qual área?"
+BOM (sem dados da bolsa no cérebro): "Que bom que você se interessou pela bolsa! Vou te explicar certinho como ela funciona. Antes, pra entender se encaixa pra você: hoje você atua em qual área?"
+
+Responda SOMENTE com o JSON, exatamente neste formato:
+{"manter_atual": false, "fala": "...", "intencao": "responder_duvida | reagir_e_conectar | aprofundar | avancar_roteiro | contornar_objecao | fechar_proximo_passo", "objetivo_roteiro": "id do item ou null", "itens_cobertos": ["ids"], "fatos_do_lead": {"chave": "valor"}}`;
 
 export async function responderSugestao(request: Request): Promise<Response> {
   const auth = request.headers.get("authorization") ?? "";
@@ -156,6 +157,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     requestId?: string;
     turno?: number;
     protocolo?: string;
+    sugestaoAtual?: string;
   };
   const callId = body.callId ?? "";
   const texto = (body.texto ?? "").trim();
@@ -214,7 +216,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
       .select("falante, texto, created_at")
       .eq("call_id", callId)
       .order("created_at", { ascending: false })
-      .limit(10),
+      .limit(16),
   ]);
   if (falaRes.error) return new Response("Não foi possível registrar a fala.", { status: 500 });
   if (falasRes.error) {
@@ -231,42 +233,70 @@ export async function responderSugestao(request: Request): Promise<Response> {
     });
   }
 
-  const ultimas = (falasRes.data ?? []).slice(0, 10).reverse();
-  const perguntasDisponiveis: PerguntaFluxo[] = ctx.perguntas.map((p) => ({
+  // Últimas trocas, já sem o eco do som da aba no canal do vendedor.
+  const ordenadas = (falasRes.data ?? []).slice().reverse();
+  const limpas: Array<{ falante: string; texto: string }> = [];
+  for (const f of ordenadas) {
+    if (f.falante !== "cliente") {
+      const recentesCliente = ordenadas
+        .filter((o) => o.falante === "cliente")
+        .map((o) => ({ texto: o.texto, em: new Date(o.created_at).getTime() }));
+      if (ehEcoDoCliente(f.texto, recentesCliente, new Date(f.created_at).getTime())) continue;
+    }
+    limpas.push({ falante: f.falante, texto: f.texto });
+  }
+  const ultimas = limpas.slice(-8);
+
+  const roteiro: ItemRoteiro[] = ctx.perguntas.map((p) => ({
     id: p.id,
     ordem: p.ordem,
     etapa: p.etapa,
-    pergunta: p.pergunta,
-    pergunta_followup: p.pergunta_followup,
-    o_que_identificar: p.o_que_identificar,
+    objetivo: p.o_que_identificar || p.pergunta,
+    pergunta_exemplo: p.pergunta,
     obrigatoria: p.obrigatoria,
   }));
-  const respondidasAntes = new Set(estado.perguntas_respondidas);
-  const pendente =
-    perguntasDisponiveis.find((p) => p.id === estado.pergunta_pendente_id) ??
-    perguntasDisponiveis.find((p) => !respondidasAntes.has(p.id));
-  const candidatas = perguntasDisponiveis.filter((p) => !respondidasAntes.has(p.id)).slice(0, 5);
-  const comentarioTecnico = call.tipo === "sdr" && pareceComentarioTecnico(texto);
-  const userMessageSdr = `PERGUNTA QUE ESTAVA PENDENTE
-${JSON.stringify(pendente ?? null)}
+  const cobertosAntes = new Set(estado.perguntas_respondidas);
+  const pendentes = roteiro.filter((i) => !cobertosAntes.has(i.id));
+  const sugestaoAtual = (body.sugestaoAtual ?? estado.ultima_orientacao ?? "").trim();
 
-PRÓXIMAS PERGUNTAS POSSÍVEIS
-${JSON.stringify(candidatas)}
+  const userMessageSdr = `CÉREBRO DO PRODUTO
+${textoCerebroProduto(ctx)}
 
-CONTEXTO IMEDIATO
-${ultimas.slice(-6).map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.texto}`).join("\n")}
+ROTEIRO (o que ainda precisamos coletar ou cumprir)
+${
+  pendentes.length
+    ? pendentes
+        .map((i) => `- id: ${i.id} | objetivo: ${i.objetivo} | exemplo de pergunta: ${i.pergunta_exemplo}${i.obrigatoria ? " | obrigatório" : ""}`)
+        .join("\n")
+    : "- tudo coletado: conduza para fechar o agendamento do diagnóstico."
+}
 
-FALA A CLASSIFICAR
+JÁ COBERTO (nunca pergunte de novo)
+${
+  roteiro
+    .filter((i) => cobertosAntes.has(i.id))
+    .map((i) => `- ${i.pergunta_exemplo}`)
+    .join("\n") || "- nada ainda"
+}
+
+FICHA DO LEAD
+Nome: ${call.nome_lead || "(ainda não sabemos)"}
+Origem: ${call.origem_lead || "(não informada)"}
+${
+  Object.entries(estado.fatos_do_lead)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n") || "(sem fatos coletados ainda)"
+}
+
+ÚLTIMAS TROCAS
+${ultimas.map((f) => `${f.falante === "cliente" ? "LEAD" : "VENDEDOR"}: ${f.texto}`).join("\n")}
+
+SUGESTAO_ATUAL
+${sugestaoAtual || "(nenhuma ainda)"}
+
+FALA ATUAL DO LEAD
 ${texto}`;
-  const systemSdr = `Você é um classificador de respostas de uma ligação SDR.
-Sua única tarefa é identificar quais perguntas cadastradas a FALA A CLASSIFICAR respondeu de forma útil.
-Use somente IDs presentes em PRÓXIMAS PERGUNTAS POSSÍVEIS.
-Compare cada informação da fala com TODAS as próximas perguntas, não apenas com a pergunta pendente.
-Uma fala pode responder várias perguntas, inclusive perguntas que ainda não foram feitas. Marque todos os IDs cobertos.
-"Sim", "correto" e equivalentes respondem a uma confirmação pendente.
-Não escolha a próxima pergunta e não escreva orientação comercial.
-Responda somente JSON válido e curto, exatamente: {"ids_respondidos":["id"],"resposta_vaga":false}.
-Se nada foi respondido, use {"ids_respondidos":[],"resposta_vaga":true}.`;
+
   const minutos = Math.max(0, Math.round((Date.now() - new Date(call.iniciada_em).getTime()) / 60000));
   const userMessageCloser = `CONTEXTO DO LEAD
 Nome: ${call.nome_lead || "(ainda não cadastrado)"}
@@ -278,106 +308,130 @@ TRANSCRIÇÃO RECENTE
 ${ultimas.map((f) => `${f.falante === "cliente" ? "CLIENTE" : "VENDEDOR"}: ${f.texto}`).join("\n")}
 ÚLTIMA FALA DO CLIENTE
 ${texto}`;
-  const system = call.tipo === "sdr" ? systemSdr : montarSystemPrompt(ctx, "closer");
+
+  const system = call.tipo === "sdr" ? SYSTEM_COPILOTO_SDR : montarSystemPrompt(ctx, "closer");
   const userMessage = call.tipo === "sdr" ? userMessageSdr : userMessageCloser;
   const model =
     ctx.config["modelo_claude_rapido"] ||
     ctx.config["modelo_claude"] ||
     "claude-haiku-4-5-20251001";
-  const maxTokens = call.tipo === "sdr" ? 100 : Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
+  const maxTokens = call.tipo === "sdr" ? 320 : Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
 
   const stream = new ReadableStream({
     async start(controller) {
-      let ultimaParcial = "";
-      let primeiraPerguntaMs: number | null = null;
+      let fechado = false;
+      let entregou = false;
+      const enviar = (evento: unknown) => {
+        if (fechado || request.signal.aborted) return;
+        controller.enqueue(linha(evento));
+      };
       try {
-        const bruto = comentarioTecnico
-          ? '{"ids_respondidos":[],"resposta_vaga":true}'
-          : await chamarClaudeStream({
-              system,
-              model,
-              maxTokens,
-              messages: [{ role: "user", content: userMessage }],
-              signal: request.signal,
-              onTexto: (_p, acumulado) => {
-                const parcial = perguntaParcial(acumulado);
-                if (parcial && parcial !== ultimaParcial) {
-                  if (primeiraPerguntaMs === null) primeiraPerguntaMs = Date.now() - inicio;
-                  ultimaParcial = parcial;
-                }
+        const chamada = chamarClaudeStream({
+          system,
+          model,
+          maxTokens,
+          temperatura: call.tipo === "sdr" ? 0.6 : undefined,
+          messages: [{ role: "user", content: userMessage }],
+          signal: request.signal,
+          onTexto: () => {},
+        });
+
+        // Rede de segurança: se passar de 2,5 s, mantemos o que já está na tela
+        // e a resposta definitiva chega logo depois, no mesmo stream.
+        if (call.tipo === "sdr") {
+          const fallback = new Promise<"lento">((resolve) => setTimeout(() => resolve("lento"), 2500));
+          const corrida = await Promise.race([chamada.then(() => "pronto" as const), fallback]);
+          if (corrida === "lento") {
+            const proxima = pendentes[0];
+            enviar({
+              tipo: "final",
+              parcial: true,
+              resposta: {
+                acao: sugestaoAtual || proxima ? "orientar" : "manter",
+                fala: sugestaoAtual || proxima?.pergunta_exemplo || "",
+                proxima_pergunta: sugestaoAtual || proxima?.pergunta_exemplo || "",
+                intencao: sugestaoAtual ? "aprofundar" : "avancar_roteiro",
+                objetivo_roteiro: proxima?.id ?? null,
+                itens_cobertos: [],
+                etapa_qualificacao: etapaDoItem(proxima),
+                resultado_sugerido: pendentes.length ? "seguir_qualificando" : "agendar_agora",
+              },
+              latencia_ms: Date.now() - inicio,
+              identidade: {
+                oferta_id: call.oferta_id,
+                produto: ctx.oferta?.nome ?? "",
+                cerebro_versao: ctx.versao,
+                request_id: body.requestId ?? "",
+                primeira_pergunta_ms: null,
+                protocolo: PROTOCOLO_COPILOTO,
               },
             });
+            entregou = true;
+          }
+        }
+
+        const bruto = await chamada;
 
         let resposta: Saida;
         try {
           resposta = extrairJson(bruto) as Saida;
         } catch {
-          resposta = ultimaParcial
-            ? { acao: "orientar", proxima_pergunta: ultimaParcial }
-            : { acao: "manter" };
+          resposta = {};
         }
 
         if (call.tipo === "sdr") {
-          const idsValidos = new Set(perguntasDisponiveis.map((p) => p.id));
-          const novasRespondidas = comentarioTecnico
-            ? []
-            : idsDoModelo(resposta["ids_respondidos"], idsValidos);
-          const perguntasRespondidas = [...new Set([...estado.perguntas_respondidas, ...novasRespondidas])];
-          const ordensNovas = perguntasDisponiveis
-            .filter((p) => novasRespondidas.includes(p.id))
-            .map((p) => p.ordem);
-          const maiorOrdemNova = ordensNovas.length ? Math.max(...ordensNovas) : null;
-          const puladasNesteTurno = maiorOrdemNova == null
-            ? []
-            : perguntasDisponiveis.filter(
-                (p) =>
-                  p.obrigatoria &&
-                  p.ordem < maiorOrdemNova &&
-                  !perguntasRespondidas.includes(p.id) &&
-                  !estado.perguntas_puladas.includes(p.id),
-              );
-          const perguntasPuladas = [
-            ...new Set([...estado.perguntas_puladas, ...puladasNesteTurno.map((p) => p.id)]),
-          ].filter((id) => !novasRespondidas.includes(id));
-          const idsEncerrados = new Set([...perguntasRespondidas, ...perguntasPuladas]);
-          const proxima = perguntasDisponiveis.find((p) => !idsEncerrados.has(p.id));
-          const respostaVaga = resposta["resposta_vaga"] === true;
-          const pendenteJaOrientada =
-            pendente && normalizar(estado.ultima_orientacao) === normalizar(pendente.pergunta);
-          const orientacao = comentarioTecnico
-            ? ""
-            : respostaVaga && pendenteJaOrientada && pendente.pergunta_followup
-              ? pendente.pergunta_followup
-              : proxima?.pergunta ?? "Confirme o agendamento e o compromisso do lead.";
-          const etapaFinal = proxima ? etapaDaPergunta(proxima) : "compromisso";
-          const etapaPulada = puladasNesteTurno[0] ? etapaDaPergunta(puladasNesteTurno[0]) : null;
-          const lembrete = etapaPulada
-            ? `Você pulou a etapa de ${ROTULOS_ETAPAS_SDR[etapaPulada].toLocaleLowerCase("pt-BR")}.`
-            : null;
-          const indiceFinal = indiceEtapaSdr(etapaFinal);
-          const concluidas = ETAPAS_SDR.slice(0, indiceFinal);
+          const idsValidos = new Set(roteiro.map((i) => i.id));
+          const falaModelo = typeof resposta["fala"] === "string" ? resposta["fala"].trim() : "";
+          const manterAtual = resposta["manter_atual"] === true && Boolean(sugestaoAtual);
+          const proximaPendente = pendentes[0];
+          const fala = manterAtual
+            ? sugestaoAtual
+            : falaModelo || sugestaoAtual || proximaPendente?.pergunta_exemplo || "";
+          if (!fala) {
+            if (!entregou) enviar({ tipo: "final", resposta: { acao: "manter" } });
+            return;
+          }
+          const cobertos = textoArray(resposta["itens_cobertos"]).filter((id) => idsValidos.has(id));
+          const perguntasRespondidas = [...new Set([...estado.perguntas_respondidas, ...cobertos])];
+          const fatosNovos = mapaTexto(resposta["fatos_do_lead"]);
+          const objetivoBruto = resposta["objetivo_roteiro"];
+          const objetivo =
+            typeof objetivoBruto === "string" && idsValidos.has(objetivoBruto)
+              ? objetivoBruto
+              : (pendentes.find((i) => !cobertos.includes(i.id))?.id ?? null);
+          const itemObjetivo = roteiro.find((i) => i.id === objetivo);
+          const intencao = intencaoValida(resposta["intencao"])
+            ? resposta["intencao"]
+            : "avancar_roteiro";
+          const restantes = roteiro.filter((i) => !perguntasRespondidas.includes(i.id));
+
           estado = {
             ...estado,
-            etapa_atual: etapaFinal,
-            etapas_concluidas: [...new Set([...estado.etapas_concluidas, ...concluidas])],
+            etapa_atual: etapaDoItem(itemObjetivo ?? restantes[0]),
             perguntas_respondidas: perguntasRespondidas,
-            perguntas_puladas: perguntasPuladas,
-            pergunta_pendente_id: proxima?.id ?? null,
-            respostas_coletadas: novasRespondidas.reduce(
+            pergunta_pendente_id: objetivo,
+            respostas_coletadas: cobertos.reduce(
               (coletadas, id) => ({ ...coletadas, [id]: texto }),
               estado.respostas_coletadas,
             ),
-            ultima_orientacao: orientacao || estado.ultima_orientacao,
-            lembrete,
+            fatos_do_lead: { ...estado.fatos_do_lead, ...fatosNovos },
+            ultima_orientacao: fala,
+            ultima_intencao: intencao,
+            lembrete: null,
             turno,
           };
           resposta = {
-            acao: orientacao ? "orientar" : "manter",
-            etapa_qualificacao: etapaFinal,
-            proxima_pergunta: orientacao,
-            alerta: lembrete,
-            resultado_sugerido: proxima ? "seguir_qualificando" : "agendar_agora",
-            perguntas_respondidas_neste_turno: novasRespondidas,
+            acao: "orientar",
+            manter_atual: manterAtual || normalizarFala(fala) === normalizarFala(sugestaoAtual),
+            fala,
+            proxima_pergunta: fala,
+            intencao,
+            objetivo_roteiro: objetivo,
+            objetivo_texto: itemObjetivo?.pergunta_exemplo ?? null,
+            itens_cobertos: cobertos,
+            itens_concluidos: perguntasRespondidas,
+            etapa_qualificacao: estado.etapa_atual,
+            resultado_sugerido: restantes.length ? "seguir_qualificando" : "agendar_agora",
           };
           const { data: concluido } = await supabase.rpc("concluir_turno_copiloto", {
             _call_id: callId,
@@ -393,24 +447,25 @@ ${texto}`;
           produto: ctx.oferta?.nome ?? "",
           cerebro_versao: ctx.versao,
           request_id: body.requestId ?? "",
-          primeira_pergunta_ms: primeiraPerguntaMs,
+          primeira_pergunta_ms: null,
           protocolo: PROTOCOLO_COPILOTO,
         };
-        const { error: erroSugestao } = await supabase.from("sugestoes").insert({
+        console.info("[copiloto] latência", { callId, tipo: call.tipo, latencia });
+        enviar({ tipo: "final", resposta, latencia_ms: latencia, identidade });
+        await supabase.from("sugestoes").insert({
           call_id: callId,
           fala_id: falaRes.data?.id ?? null,
           resposta: { ...resposta, _cerebro: identidade } as never,
           latencia_ms: latencia,
         });
-        if (erroSugestao || request.signal.aborted) return;
-        controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia, identidade }));
       } catch (e) {
         if (request.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
         console.error("[copiloto] falha ao gerar sugestão", e);
-        controller.enqueue(
-          linha({ tipo: "erro", mensagem: "Não foi possível gerar a sugestão agora." }),
-        );
+        if (!entregou) {
+          enviar({ tipo: "erro", mensagem: "Não foi possível gerar a sugestão agora." });
+        }
       } finally {
+        fechado = true;
         controller.close();
       }
     },
