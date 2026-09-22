@@ -293,12 +293,22 @@ function CallAoVivo() {
             if (!l.trim() || numero !== requisicaoRef.current) continue;
             const evento = JSON.parse(l) as {
               tipo: string;
+              fala?: string;
               proxima_pergunta?: string;
               resposta?: Sugestao;
               mensagem?: string;
               identidade?: IdentidadeCerebro;
             };
-            if (evento.tipo === "final") {
+            if (evento.tipo === "parcial") {
+              // Digitação ao vivo: só atualiza a tela se o vendedor não estiver falando agora.
+              if (
+                typeof evento.fala === "string" &&
+                evento.fala.trim() &&
+                falandoAteRef.current <= Date.now()
+              ) {
+                setPerguntaParcial(evento.fala);
+              }
+            } else if (evento.tipo === "final") {
               const identidadeOk =
                 evento.identidade?.oferta_id === ofertaId &&
                 evento.identidade?.cerebro_versao === versao &&
@@ -306,7 +316,10 @@ function CallAoVivo() {
                 evento.identidade?.protocolo === PROTOCOLO_COPILOTO;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
-              if (resposta) aplicarSugestao(resposta);
+              if (resposta) {
+                setPerguntaParcial("");
+                aplicarSugestao(resposta);
+              }
             } else if (evento.tipo === "erro") {
               toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
             }
