@@ -216,7 +216,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     });
   }
 
-  const ctx = await carregarCerebroComCache(supabase, call.oferta_id);
+  const ctx = await carregarCerebro(supabase, call.oferta_id, true);
   if (call.tipo === "sdr" && body.cerebroVersao !== ctx.versao) {
     return new Response("O cérebro deste produto foi atualizado. Reabra a ligação.", { status: 409 });
   }
