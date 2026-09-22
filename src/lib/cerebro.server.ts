@@ -1,6 +1,7 @@
 // Server-only: monta o system prompt do Copiloto CX e fala com a API da Anthropic.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { resolverPorProduto, temConteudoProprio } from "./qualificacao";
 
 type DB = SupabaseClient<Database>;
 
