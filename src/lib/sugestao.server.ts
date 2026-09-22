@@ -104,6 +104,50 @@ function clienteComToken(token: string) {
   });
 }
 
+// Cache curto em memória: a mesma ligação dispara várias análises por minuto,
+// e nem a sessão nem o cérebro do produto mudam nesse intervalo.
+const claimsCache = new Map<string, { sub: string; ate: number }>();
+const cerebroCache = new Map<string, { ctx: CtxCerebro; ate: number }>();
+const TTL_CLAIMS_MS = 30_000;
+const TTL_CEREBRO_MS = 15_000;
+
+type CtxCerebro = Awaited<ReturnType<typeof carregarCerebro>>;
+
+async function carregarCerebroComCache(
+  supabase: ReturnType<typeof clienteComToken>,
+  ofertaId: string | null,
+): Promise<CtxCerebro> {
+  const chave = ofertaId ?? "__sem_produto__";
+  const emCache = cerebroCache.get(chave);
+  if (emCache && emCache.ate > Date.now()) return emCache.ctx;
+  const ctx = await carregarCerebro(supabase, ofertaId, true);
+  cerebroCache.set(chave, { ctx, ate: Date.now() + TTL_CEREBRO_MS });
+  return ctx;
+}
+
+/** Extrai o que já foi gerado do campo "fala" do JSON parcial, para streaming na tela. */
+function falaParcial(acumulado: string): string {
+  const chave = acumulado.indexOf('"fala"');
+  if (chave < 0) return "";
+  const abre = acumulado.indexOf('"', chave + 6);
+  if (abre < 0) return "";
+  let saida = "";
+  for (let j = abre + 1; j < acumulado.length; j++) {
+    const c = acumulado[j];
+    if (c === "\\") {
+      const proximo = acumulado[j + 1];
+      if (proximo === undefined) break;
+      if (proximo === "n") saida += " ";
+      else if (proximo === '"' || proximo === "\\" || proximo === "/") saida += proximo;
+      j++;
+      continue;
+    }
+    if (c === '"') break;
+    saida += c;
+  }
+  return saida;
+}
+
 const SYSTEM_COPILOTO_SDR = `Você é o copiloto de um vendedor (SDR) durante uma ligação ao vivo. Você ouve a conversa e escreve a PRÓXIMA FALA que o vendedor vai ler em voz alta, agora, para o lead.
 
 Pense como o melhor vendedor consultivo do Brasil: interessado de verdade na pessoa, leve, caloroso, curioso, que escuta mais do que fala e conduz sem parecer que está conduzindo. A conversa é um bate-papo, não um interrogatório.
