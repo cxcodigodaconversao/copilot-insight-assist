@@ -24,7 +24,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
-import { obterTokenDeepgram, registrarFala, gerarResumoCall } from "@/lib/copiloto.functions";
+import {
+  obterTokenDeepgram,
+  obterCerebroDaCall,
+  registrarFala,
+  gerarResumoCall,
+} from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
 
 
@@ -56,6 +61,12 @@ type Sugestao = {
 };
 
 type Linha = { id: string; falante: Falante; texto: string; parcial?: boolean };
+type IdentidadeCerebro = {
+  oferta_id: string;
+  produto: string;
+  cerebro_versao: string;
+  request_id: string;
+};
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -84,6 +95,7 @@ function CallAoVivo() {
   const { callId } = Route.useParams();
   const navigate = useNavigate();
   const chamarToken = useServerFn(obterTokenDeepgram);
+  const carregarCerebroDaCall = useServerFn(obterCerebroDaCall);
   const chamarFala = useServerFn(registrarFala);
   const chamarResumo = useServerFn(gerarResumoCall);
 
@@ -101,6 +113,10 @@ function CallAoVivo() {
   const [semSomDoCliente, setSemSomDoCliente] = useState(false);
 
   const fimRef = useRef<HTMLDivElement>(null);
+  const debounceClienteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const falaClientePendenteRef = useRef("");
+  const requisicaoRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const { data: call } = useQuery({
     queryKey: ["call", callId],
@@ -123,53 +139,30 @@ function CallAoVivo() {
 
 
   const { data: cerebroSdr } = useQuery({
-    queryKey: ["perguntas-qualificacao-ativas", call?.oferta_id ?? "geral"],
-    enabled: ehSdr && !!call?.oferta_id,
-    queryFn: async () => {
-      const ofertaId = call?.oferta_id;
-      if (!ofertaId) return { perguntas: [], completo: false };
-      const [perguntasRes, regrasRes, criteriosRes] = await Promise.all([
-        supabase
-          .from("perguntas_qualificacao")
-          .select("id, categoria, pergunta")
-          .eq("oferta_id", ofertaId)
-          .eq("ativo", true)
-          .eq("oculto", false)
-          .order("ordem"),
-        supabase
-          .from("regras_copiloto")
-          .select("chave, valor")
-          .eq("oferta_id", ofertaId)
-          .in("chave", ["persona_sdr", "regras_conduta_sdr", "roteiro_sdr"]),
-        supabase
-          .from("criterios_qualificacao")
-          .select("id")
-          .eq("oferta_id", ofertaId)
-          .eq("ativo", true)
-          .eq("oculto", false),
-      ]);
-      const erro = perguntasRes.error ?? regrasRes.error ?? criteriosRes.error;
-      if (erro) throw erro;
-      const regras = new Map((regrasRes.data ?? []).map((r) => [r.chave, r.valor?.trim()]));
-      return {
-        perguntas: perguntasRes.data ?? [],
-        completo:
-          (perguntasRes.data?.length ?? 0) > 0 &&
-          (criteriosRes.data?.length ?? 0) > 0 &&
-          Boolean(regras.get("persona_sdr")) &&
-          Boolean(regras.get("regras_conduta_sdr")) &&
-          Boolean(regras.get("roteiro_sdr")),
-      };
-    },
+    queryKey: ["cerebro-estrito-da-call", callId, call?.oferta_id ?? "sem-produto"],
+    enabled: ehSdr,
+    queryFn: () => carregarCerebroDaCall({ data: { callId } }),
   });
   const perguntas = cerebroSdr?.perguntas ?? [];
   const cerebroSdrCompleto = !ehSdr || cerebroSdr?.completo === true;
 
   useEffect(() => {
+    if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
+    abortRef.current?.abort();
+    falaClientePendenteRef.current = "";
+    requisicaoRef.current += 1;
     setSugestao(null);
     setHistorico([]);
     setPerguntaParcial("");
   }, [call?.oferta_id]);
+
+  useEffect(
+    () => () => {
+      if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   const { data: config } = useQuery({
     queryKey: ["config_api"],
@@ -187,6 +180,91 @@ function CallAoVivo() {
     });
   }, []);
 
+  const analisarFalaCliente = useCallback(
+    async (texto: string) => {
+      const ofertaId = cerebroSdr?.ofertaId;
+      const versao = cerebroSdr?.versao;
+      if (ehSdr && (!ofertaId || !versao)) return;
+      const numero = requisicaoRef.current + 1;
+      requisicaoRef.current = numero;
+      const requestId = `${callId}-${numero}-${Date.now()}`;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setPensando(true);
+      setPerguntaParcial(perguntas[0]?.pergunta ?? "");
+      try {
+        const { data: sessao } = await supabase.auth.getSession();
+        const token = sessao.session?.access_token;
+        if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
+        const res = await fetch("/api/sugestao", {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            callId,
+            texto,
+            ofertaId,
+            cerebroVersao: versao,
+            requestId,
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const mensagem = await res.text();
+          throw new Error(mensagem || "Falha ao gerar a sugestão.");
+        }
+        if (!res.body) throw new Error("Falha ao gerar a sugestão.");
+
+        const leitor = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await leitor.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const linhasNdjson = buffer.split("\n");
+          buffer = linhasNdjson.pop() ?? "";
+          for (const l of linhasNdjson) {
+            if (!l.trim() || numero !== requisicaoRef.current) continue;
+            const evento = JSON.parse(l) as {
+              tipo: string;
+              proxima_pergunta?: string;
+              resposta?: Sugestao;
+              mensagem?: string;
+              identidade?: IdentidadeCerebro;
+            };
+            if (evento.tipo === "parcial" && evento.proxima_pergunta) {
+              setPerguntaParcial(evento.proxima_pergunta);
+            } else if (evento.tipo === "final") {
+              const identidadeOk =
+                evento.identidade?.oferta_id === ofertaId &&
+                evento.identidade?.cerebro_versao === versao &&
+                evento.identidade?.request_id === requestId;
+              if (!identidadeOk) continue;
+              const resposta = evento.resposta;
+              if (resposta?.acao && resposta.acao !== "manter") {
+                setSugestao(resposta);
+                setHistorico((h) => [resposta, ...h]);
+              }
+            } else if (evento.tipo === "erro") {
+              toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
+            }
+          }
+        }
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          toast.error(e instanceof Error ? e.message : "Falha ao gerar a sugestão.");
+        }
+      } finally {
+        if (numero === requisicaoRef.current) {
+          setPensando(false);
+          setPerguntaParcial("");
+        }
+      }
+    },
+    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, perguntas],
+  );
+
   const onFinal = useCallback(
     (falante: Falante, texto: string) => {
       setLinhas((prev) => [
@@ -197,63 +275,17 @@ function CallAoVivo() {
         void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
         return;
       }
-      setPensando(true);
-      setPerguntaParcial("");
-      void (async () => {
-        try {
-          const { data: sessao } = await supabase.auth.getSession();
-          const token = sessao.session?.access_token;
-          if (!token) throw new Error("Sua sessão expirou. Entre de novo.");
-          const res = await fetch("/api/sugestao", {
-            method: "POST",
-            headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ callId, texto }),
-          });
-          if (!res.ok) {
-            const mensagem = await res.text();
-            throw new Error(mensagem || "Falha ao gerar a sugestão.");
-          }
-          if (!res.body) throw new Error("Falha ao gerar a sugestão.");
-
-          const leitor = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          for (;;) {
-            const { done, value } = await leitor.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const linhasNdjson = buffer.split("\n");
-            buffer = linhasNdjson.pop() ?? "";
-            for (const l of linhasNdjson) {
-              if (!l.trim()) continue;
-              const evento = JSON.parse(l) as {
-                tipo: string;
-                proxima_pergunta?: string;
-                resposta?: Sugestao;
-                mensagem?: string;
-              };
-              if (evento.tipo === "parcial" && evento.proxima_pergunta) {
-                setPerguntaParcial(evento.proxima_pergunta);
-              } else if (evento.tipo === "final") {
-                const resposta = evento.resposta;
-                if (resposta?.acao && resposta.acao !== "manter") {
-                  setSugestao(resposta);
-                  setHistorico((h) => [resposta, ...h]);
-                }
-              } else if (evento.tipo === "erro") {
-                toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
-              }
-            }
-          }
-        } catch (e) {
-          toast.error(e instanceof Error ? e.message : "Falha ao gerar a sugestão.");
-        } finally {
-          setPensando(false);
-          setPerguntaParcial("");
-        }
-      })();
+      falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
+        .filter(Boolean)
+        .join(" ");
+      if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
+      debounceClienteRef.current = setTimeout(() => {
+        const falaAgrupada = falaClientePendenteRef.current.trim();
+        falaClientePendenteRef.current = "";
+        if (falaAgrupada) void analisarFalaCliente(falaAgrupada);
+      }, 900);
     },
-    [callId, chamarFala],
+    [analisarFalaCliente, callId, chamarFala],
   );
 
   const transcricao = useTranscricao({
