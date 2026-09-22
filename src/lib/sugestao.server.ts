@@ -101,6 +101,10 @@ export async function responderSugestao(request: Request): Promise<Response> {
       .order("created_at", { ascending: false })
       .limit(10),
   ]);
+  if (falaRes.error) return new Response("Não foi possível registrar a fala.", { status: 500 });
+  if (falasRes.error) {
+    return new Response("Não foi possível carregar o contexto recente.", { status: 500 });
+  }
   const minPalavras = Number(ctx.config["min_palavras_para_analisar"] ?? 6);
 
   const codificador = new TextEncoder();
