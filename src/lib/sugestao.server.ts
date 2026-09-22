@@ -190,8 +190,14 @@ export async function responderSugestao(request: Request): Promise<Response> {
   if (token.split(".").length !== 3) return new Response("Unauthorized", { status: 401 });
 
   const supabase = clienteComToken(token);
-  const { data: claims, error: erroClaims } = await supabase.auth.getClaims(token);
-  if (erroClaims || !claims?.claims?.sub) return new Response("Unauthorized", { status: 401 });
+  const claimsEmCache = claimsCache.get(token);
+  if (claimsEmCache && claimsEmCache.ate > Date.now()) {
+    // sessão revalidada há poucos segundos: segue direto
+  } else {
+    const { data: claims, error: erroClaims } = await supabase.auth.getClaims(token);
+    if (erroClaims || !claims?.claims?.sub) return new Response("Unauthorized", { status: 401 });
+    claimsCache.set(token, { sub: claims.claims.sub, ate: Date.now() + TTL_CLAIMS_MS });
+  }
 
   const body = (await request.json()) as {
     callId?: string;
@@ -226,7 +232,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     });
   }
 
-  const ctx = await carregarCerebro(supabase, call.oferta_id, true);
+  const ctx = await carregarCerebroComCache(supabase, call.oferta_id);
   if (call.tipo === "sdr" && body.cerebroVersao !== ctx.versao) {
     return new Response("O cérebro deste produto foi atualizado. Reabra a ligação.", { status: 409 });
   }
