@@ -109,7 +109,7 @@ function SeletorProduto({
         <div>
           <h2 className="text-base">Padrão geral</h2>
           <p className="text-sm text-muted-foreground">
-            Base herdada por todos os produtos, mais os perfis DISC, cadastros e configurações.
+            Referência geral e perfis DISC. Produtos com cérebro próprio não herdam conteúdo daqui.
           </p>
         </div>
         <Button variant="secondary" onClick={() => onEscolher("geral")} disabled={!ehAdm && false}>
@@ -716,7 +716,7 @@ function Regras({ ofertaId }: { ofertaId: string | null }) {
           <RegraCard
             key={r.chave}
             chave={r.chave}
-            valorInicial={proprio?.valor ?? r.valor}
+            valorInicial={ofertaId ? (proprio?.valor ?? "") : r.valor}
             ajuda={r.descricao_ajuda}
             mostrarOrigem={!!ofertaId}
             proprio={!!proprio}

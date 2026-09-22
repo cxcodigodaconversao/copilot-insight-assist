@@ -209,7 +209,11 @@ function CallAoVivo() {
             headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ callId, texto }),
           });
-          if (!res.ok || !res.body) throw new Error("Falha ao gerar a sugestão.");
+          if (!res.ok) {
+            const mensagem = await res.text();
+            throw new Error(mensagem || "Falha ao gerar a sugestão.");
+          }
+          if (!res.body) throw new Error("Falha ao gerar a sugestão.");
 
           const leitor = res.body.getReader();
           const decoder = new TextDecoder();
@@ -572,6 +576,11 @@ function CallAoVivo() {
 
 
         <div className="card-cx flex h-[70vh] flex-col p-6">
+          {ehSdr && call?.ofertas?.nome && (
+            <p className="mb-4 text-xs uppercase tracking-widest text-primary">
+              Cérebro ativo · {call.ofertas.nome}
+            </p>
+          )}
           {sugestao?.alerta && (
             <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive px-4 py-3 text-sm text-destructive-foreground">
               <AlertTriangle className="size-4 shrink-0" />
