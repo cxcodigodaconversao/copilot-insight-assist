@@ -261,7 +261,9 @@ ${texto}`;
   const systemSdr = `Você é um classificador de respostas de uma ligação SDR.
 Sua única tarefa é identificar quais perguntas cadastradas a FALA A CLASSIFICAR respondeu de forma útil.
 Use somente IDs presentes em PRÓXIMAS PERGUNTAS POSSÍVEIS.
-Uma fala pode responder várias perguntas. "Sim", "correto" e equivalentes respondem a uma confirmação pendente.
+Compare cada informação da fala com TODAS as próximas perguntas, não apenas com a pergunta pendente.
+Uma fala pode responder várias perguntas, inclusive perguntas que ainda não foram feitas. Marque todos os IDs cobertos.
+"Sim", "correto" e equivalentes respondem a uma confirmação pendente.
 Não escolha a próxima pergunta e não escreva orientação comercial.
 Responda somente JSON válido e curto, exatamente: {"ids_respondidos":["id"],"resposta_vaga":false}.
 Se nada foi respondido, use {"ids_respondidos":[],"resposta_vaga":true}.`;
@@ -328,7 +330,11 @@ ${texto}`;
           const puladasNesteTurno = maiorOrdemNova == null
             ? []
             : perguntasDisponiveis.filter(
-                (p) => p.obrigatoria && p.ordem < maiorOrdemNova && !perguntasRespondidas.includes(p.id),
+                (p) =>
+                  p.obrigatoria &&
+                  p.ordem < maiorOrdemNova &&
+                  !perguntasRespondidas.includes(p.id) &&
+                  !estado.perguntas_puladas.includes(p.id),
               );
           const perguntasPuladas = [
             ...new Set([...estado.perguntas_puladas, ...puladasNesteTurno.map((p) => p.id)]),
@@ -343,7 +349,7 @@ ${texto}`;
             : respostaVaga && pendenteJaOrientada && pendente.pergunta_followup
               ? pendente.pergunta_followup
               : proxima?.pergunta ?? "Confirme o agendamento e o compromisso do lead.";
-          const etapaFinal = etapaDaPergunta(proxima);
+          const etapaFinal = proxima ? etapaDaPergunta(proxima) : "compromisso";
           const etapaPulada = puladasNesteTurno[0] ? etapaDaPergunta(puladasNesteTurno[0]) : null;
           const lembrete = etapaPulada
             ? `Você pulou a etapa de ${ROTULOS_ETAPAS_SDR[etapaPulada].toLocaleLowerCase("pt-BR")}.`

@@ -294,7 +294,7 @@ function CallAoVivo() {
           abortRef.current?.abort();
           void analisarFalaCliente(falaAgrupada);
         }
-      }, 250);
+      }, 200);
     },
     [analisarFalaCliente, callId, chamarFala],
   );
