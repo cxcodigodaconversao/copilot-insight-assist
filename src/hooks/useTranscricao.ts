@@ -41,6 +41,7 @@ export function suportaCapturaDeAba() {
 
 export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
   const canais = useRef<Canal[]>([]);
+  const falasDoCliente = useRef<Array<{ texto: string; em: number }>>([]);
   const pausado = useRef(false);
   const niveis = useRef<{ vendedor: number; cliente: number }>({ vendedor: 0, cliente: 0 });
   const [ativo, setAtivo] = useState(false);
