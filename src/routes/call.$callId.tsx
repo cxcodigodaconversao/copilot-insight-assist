@@ -512,6 +512,15 @@ function CallAoVivo() {
             <div className="mt-3 max-h-40 overflow-y-auto border-t border-border pt-3">
               <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
                 Roteiro de qualificação
+                {call?.oferta_id ? (
+                  <span className="ml-2 normal-case tracking-normal text-primary">
+                    {call.ofertas?.nome}
+                  </span>
+                ) : (
+                  <span className="ml-2 normal-case tracking-normal text-destructive">
+                    nenhum produto escolhido — usando o padrão geral
+                  </span>
+                )}
               </p>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 {perguntas.map((p) => (
