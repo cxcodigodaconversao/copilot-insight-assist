@@ -26,6 +26,7 @@ import {
 import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
 import { obterTokenDeepgram, registrarFala, gerarResumoCall } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
+import { resolverPorProduto } from "@/lib/qualificacao";
 
 
 export const Route = createFileRoute("/call/$callId")({
