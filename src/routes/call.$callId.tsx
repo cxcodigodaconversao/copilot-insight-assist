@@ -123,16 +123,17 @@ function CallAoVivo() {
 
 
   const { data: perguntas } = useQuery({
-    queryKey: ["perguntas-qualificacao-ativas"],
-    enabled: ehSdr,
+    queryKey: ["perguntas-qualificacao-ativas", call?.oferta_id ?? "geral"],
+    enabled: ehSdr && !!call,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("perguntas_qualificacao")
-        .select("id, categoria, pergunta")
+        .select("id, categoria, pergunta, oferta_id, oculto")
         .eq("ativo", true)
         .order("ordem");
       if (error) throw error;
-      return data ?? [];
+      // Cada produto usa somente o que é dele; sem cadastro próprio, usa o padrão geral.
+      return resolverPorProduto(data ?? [], call?.oferta_id ?? null);
     },
   });
 
