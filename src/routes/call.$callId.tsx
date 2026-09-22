@@ -206,6 +206,10 @@ function CallAoVivo() {
     setSugestao(null);
     setHistorico([]);
     setPerguntaParcial("");
+    setSugestaoAnterior(null);
+    setCobertos([]);
+    sugestaoRef.current = "";
+    pendenteRef.current = null;
   }, [call?.oferta_id]);
 
   useEffect(
