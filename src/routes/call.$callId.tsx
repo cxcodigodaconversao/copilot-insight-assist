@@ -300,10 +300,7 @@ function CallAoVivo() {
                 evento.identidade?.protocolo === PROTOCOLO_COPILOTO;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
-              if (resposta?.proxima_pergunta) {
-                setSugestao(resposta);
-                setHistorico((h) => [resposta, ...h]);
-              }
+              if (resposta) aplicarSugestao(resposta);
             } else if (evento.tipo === "erro") {
               toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
             }
