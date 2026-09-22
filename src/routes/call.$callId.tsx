@@ -262,6 +262,7 @@ function CallAoVivo() {
             ofertaId,
             cerebroVersao: versao,
             requestId,
+            sugestaoAtual: sugestaoRef.current,
             turno: Date.now() * 100 + (numero % 100),
             protocolo: PROTOCOLO_COPILOTO,
           }),
