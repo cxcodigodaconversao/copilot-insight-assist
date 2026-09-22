@@ -59,6 +59,13 @@ type Sugestao = {
   temperatura?: string;
   sinal?: string;
   proxima_pergunta?: string;
+  fala?: string;
+  intencao?: string;
+  objetivo_roteiro?: string | null;
+  objetivo_texto?: string | null;
+  itens_cobertos?: string[];
+  itens_concluidos?: string[];
+  manter_atual?: boolean;
   porque?: string;
   alerta?: string | null;
   lembrete_etapa_pulada?: string | null;
