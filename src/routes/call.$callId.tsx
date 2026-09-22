@@ -31,7 +31,11 @@ import {
   gerarResumoCall,
 } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
-import { PROTOCOLO_COPILOTO } from "@/lib/fluxo-sdr";
+import {
+  PROTOCOLO_COPILOTO,
+  ROTULOS_INTENCOES,
+  type IntencaoCopiloto,
+} from "@/lib/fluxo-sdr";
 
 
 export const Route = createFileRoute("/call/$callId")({
