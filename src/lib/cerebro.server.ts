@@ -137,7 +137,7 @@ function montarSystemPromptSdr(ctx: CerebroContexto): string {
   const perguntas = ctx.perguntas
     .map(
       (p) =>
-        `[${p.categoria}] ${p.pergunta}\n  O que identificar: ${p.o_que_identificar}\n  Se a resposta for vaga: ${p.pergunta_followup ?? ""}`,
+        `[ID ${p.id}] [${p.categoria}] ${p.pergunta}\n  O que identificar: ${p.o_que_identificar}\n  Se a resposta for vaga: ${p.pergunta_followup ?? ""}`,
     )
     .join("\n");
 
@@ -184,20 +184,20 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 === FORMATO DE RESPOSTA ===
 Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {
-  "proxima_pergunta": "a pergunta exata que o SDR deve fazer agora, em linguagem falada",
   "acao": "manter | orientar | alerta",
-  "leitura": "1 frase: o que o lead acabou de revelar",
-  "perfil_disc": {"tipo": "D|I|S|C|indefinido", "confianca": 0.0},
-  "etapa_qualificacao": "abertura | diagnostico | pontuacao | agendamento | encerramento",
-  "temperatura": "frio | morno | quente",
-  "pontuacao_qualificacao": 0,
-  "sinal": "objecao_agenda | lead_desqualificado | sinal_agendamento | duvida_fora_do_escopo | desvio | nenhum",
-  "porque": "1 frase curta",
+  "etapa_qualificacao": "apresentacao | motivo | diagnostico | dor_implicacao | interesse | agendamento | validacao | compromisso | encerramento",
+  "perguntas_respondidas_neste_turno": ["IDs exatos das perguntas respondidas pela fala atual"],
+  "proxima_pergunta": "uma única orientação pronta para o SDR falar agora",
   "resultado_sugerido": "seguir_qualificando | agendar_agora | desqualificar",
-  "alerta": "só preencha se o SDR estiver perdendo o lead ou pulando etapa, senão null"
+  "lembrete_etapa_pulada": "nome curto da etapa obrigatória pulada, ou null"
 }
-Escreva os campos exatamente nessa ordem, começando por "proxima_pergunta" e "acao". Seja direto: frases curtas.
-Quando "acao" for "manter", envie apenas {"acao": "manter"}.
+REGRAS INEGOCIÁVEIS DA RESPOSTA AO VIVO:
+- Produza somente UMA orientação curta, com no máximo duas frases faladas e uma única pergunta.
+- O ESTADO DA CONVERSA recebido na mensagem é a fonte de verdade. Nunca volte para etapa concluída e nunca repita pergunta já respondida.
+- Se o lead adiantar uma resposta, marque os IDs correspondentes e avance para o ponto mais adiantado alcançado.
+- Se uma etapa obrigatória foi pulada, continue no ponto atual e preencha lembrete_etapa_pulada. Nunca retroceda silenciosamente.
+- Se a fala não trouxer informação comercial nova ou for comentário técnico sobre o próprio sistema, responda somente {"acao":"manter","etapa_qualificacao":"etapa atual","perguntas_respondidas_neste_turno":[],"proxima_pergunta":"","resultado_sugerido":"seguir_qualificando","lembrete_etapa_pulada":null}.
+- Não escreva análise, justificativa, DISC, pontuação ou explicações na orientação ao vivo.
 ${ctx.regras["formato_saida_extra"] ?? ""}`;
 }
 

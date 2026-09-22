@@ -1,0 +1,1 @@
+ALTER TABLE public.calls ALTER COLUMN turno_copiloto TYPE integer USING LEAST(turno_copiloto, 2147483647)::integer;
