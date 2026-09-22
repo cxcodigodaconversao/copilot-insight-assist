@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { temConteudoProprio } from "@/lib/qualificacao";
+import { ETAPAS_SDR, ROTULOS_ETAPAS_SDR, type EtapaSdr } from "@/lib/fluxo-sdr";
 
 export type TabelaCadastro =
   | "times"
@@ -470,16 +471,18 @@ function Etiqueta({ proprio, emUso = true }: { proprio: boolean; emUso?: boolean
 
 type PerguntaQualificacao = Heranca & {
   categoria: string;
+  etapa: string;
   pergunta: string;
   o_que_identificar: string;
   pergunta_followup: string | null;
   ativo: boolean;
+  obrigatoria: boolean;
   ordem: number;
 };
 
 function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
   const qc = useQueryClient();
-  const [nova, setNova] = useState({ categoria: "momento", pergunta: "" });
+  const [nova, setNova] = useState({ categoria: "momento", etapa: "diagnostico", pergunta: "" });
   const { data } = useQuery({
     queryKey: ["perguntas-qualificacao"],
     queryFn: async () => {
@@ -505,6 +508,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
     const ordem = lista.length + 1;
     const { error } = await supabase.from("perguntas_qualificacao").insert({
       categoria: nova.categoria,
+      etapa: nova.etapa,
       pergunta: nova.pergunta.trim(),
       ordem,
       oferta_id: ofertaId,
@@ -513,7 +517,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
       toast.error("Não foi possível salvar.");
       return;
     }
-    setNova({ categoria: "momento", pergunta: "" });
+    setNova({ categoria: "momento", etapa: "diagnostico", pergunta: "" });
     recarregar();
   }
 
@@ -565,7 +569,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
           Perguntas que o SDR faz para qualificar o lead, agrupadas por categoria.
         </p>
       </div>
-      <div className="flex gap-2">
+      <div className="grid gap-2 sm:grid-cols-[11rem_12rem_1fr_auto]">
         <select
           value={nova.categoria}
           onChange={(e) => setNova({ ...nova, categoria: e.target.value })}
@@ -575,6 +579,15 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
             <option key={c.valor} value={c.valor}>
               {c.rotulo}
             </option>
+          ))}
+        </select>
+        <select
+          value={nova.etapa}
+          onChange={(e) => setNova({ ...nova, etapa: e.target.value })}
+          className={selectClass}
+        >
+          {ETAPAS_SDR.map((etapa) => (
+            <option key={etapa} value={etapa}>{ROTULOS_ETAPAS_SDR[etapa]}</option>
           ))}
         </select>
         <Input
@@ -628,7 +641,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
                   )}
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="grid items-center gap-2 sm:grid-cols-[10rem_12rem_1fr_5rem_auto_auto]">
                 <select
                   value={p.categoria}
                   onChange={(e) => atualizar(p, { categoria: e.target.value })}
@@ -637,6 +650,17 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
                   {CATEGORIAS_QUALIFICACAO.map((c) => (
                     <option key={c.valor} value={c.valor}>
                       {c.rotulo}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={p.etapa}
+                  onChange={(e) => atualizar(p, { etapa: e.target.value })}
+                  className={selectClass}
+                >
+                  {ETAPAS_SDR.map((etapa) => (
+                    <option key={etapa} value={etapa}>
+                      {ROTULOS_ETAPAS_SDR[etapa as EtapaSdr]}
                     </option>
                   ))}
                 </select>
@@ -662,6 +686,14 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
                     onChange={(e) => atualizar(p, { ativo: e.target.checked })}
                   />
                   ativo
+                </label>
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={p.obrigatoria}
+                    onChange={(e) => atualizar(p, { obrigatoria: e.target.checked })}
+                  />
+                  obrigatória
                 </label>
                 <Button type="button" variant="ghost" size="icon" onClick={() => remover(p)}>
                   <Trash2 className="size-4" />
