@@ -1,6 +1,6 @@
 // Server-only: gera a sugestão do copiloto em tempo real (streaming) durante a call.
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import {
   carregarCerebro,
   chamarClaudeStream,
@@ -8,7 +8,6 @@ import {
   montarSystemPrompt,
 } from "./cerebro.server";
 
-type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 type Saida = { [k: string]: Json };
 
 type EstadoQualificacao = {
@@ -44,19 +43,19 @@ function textoArray(valor: Json | undefined): string[] {
 function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQualificacao {
   const bruto = valor && typeof valor === "object" && !Array.isArray(valor) ? valor : {};
   return {
-    etapa_atual: typeof bruto.etapa_atual === "string" ? bruto.etapa_atual : "apresentacao",
-    etapas_concluidas: textoArray(bruto.etapas_concluidas),
-    perguntas_respondidas: textoArray(bruto.perguntas_respondidas),
-    criterios_atendidos: textoArray(bruto.criterios_atendidos),
+    etapa_atual: typeof bruto["etapa_atual"] === "string" ? bruto["etapa_atual"] : "apresentacao",
+    etapas_concluidas: textoArray(bruto["etapas_concluidas"]),
+    perguntas_respondidas: textoArray(bruto["perguntas_respondidas"]),
+    criterios_atendidos: textoArray(bruto["criterios_atendidos"]),
     respostas_coletadas:
-      bruto.respostas_coletadas && typeof bruto.respostas_coletadas === "object" && !Array.isArray(bruto.respostas_coletadas)
-        ? (bruto.respostas_coletadas as Record<string, string>)
+      bruto["respostas_coletadas"] && typeof bruto["respostas_coletadas"] === "object" && !Array.isArray(bruto["respostas_coletadas"])
+        ? (bruto["respostas_coletadas"] as Record<string, string>)
         : {},
-    ultima_orientacao: typeof bruto.ultima_orientacao === "string" ? bruto.ultima_orientacao : "",
-    lembrete: typeof bruto.lembrete === "string" ? bruto.lembrete : null,
+    ultima_orientacao: typeof bruto["ultima_orientacao"] === "string" ? bruto["ultima_orientacao"] : "",
+    lembrete: typeof bruto["lembrete"] === "string" ? bruto["lembrete"] : null,
     oferta_id: ofertaId,
     cerebro_versao: versao,
-    turno: typeof bruto.turno === "number" ? bruto.turno : 0,
+    turno: typeof bruto["turno"] === "number" ? bruto["turno"] : 0,
   };
 }
 
@@ -264,16 +263,16 @@ ${texto}`;
 
         if (call.tipo === "sdr") {
           const atual = indiceEtapa(estado.etapa_atual);
-          const proposta = typeof resposta.etapa_qualificacao === "string" ? indiceEtapa(resposta.etapa_qualificacao) : atual;
+          const proposta = typeof resposta["etapa_qualificacao"] === "string" ? indiceEtapa(resposta["etapa_qualificacao"]) : atual;
           const indiceFinal = Math.max(atual, proposta);
           const etapaFinal = ETAPAS[indiceFinal] ?? ETAPAS[atual] ?? "apresentacao";
           const idsValidos = new Set(ctx.perguntas.map((p) => p.id));
-          const novasRespondidas = textoArray(resposta.perguntas_respondidas_neste_turno).filter((id) => idsValidos.has(id));
+          const novasRespondidas = textoArray(resposta["perguntas_respondidas_neste_turno"]).filter((id) => idsValidos.has(id));
           const perguntasRespondidas = [...new Set([...estado.perguntas_respondidas, ...novasRespondidas])];
-          let orientacao = typeof resposta.proxima_pergunta === "string" ? resposta.proxima_pergunta.trim() : "";
+          let orientacao = typeof resposta["proxima_pergunta"] === "string" ? resposta["proxima_pergunta"].trim() : "";
           if (normalizar(orientacao) === normalizar(estado.ultima_orientacao)) orientacao = "";
           const pulou = indiceFinal > atual + 1 ? ETAPAS[atual + 1] : null;
-          const lembreteModelo = typeof resposta.lembrete_etapa_pulada === "string" ? resposta.lembrete_etapa_pulada : null;
+          const lembreteModelo = typeof resposta["lembrete_etapa_pulada"] === "string" ? resposta["lembrete_etapa_pulada"] : null;
           const lembrete = pulou ? `Você pulou a etapa de ${pulou.replaceAll("_", " ")}.` : lembreteModelo;
           const concluidas = ETAPAS.slice(0, indiceFinal).filter((item) => !estado.etapas_concluidas.includes(item));
           estado = {
@@ -287,7 +286,7 @@ ${texto}`;
           };
           resposta = {
             ...resposta,
-            acao: orientacao ? resposta.acao ?? "orientar" : "manter",
+            acao: orientacao ? resposta["acao"] ?? "orientar" : "manter",
             etapa_qualificacao: etapaFinal,
             proxima_pergunta: orientacao,
             alerta: lembrete,
