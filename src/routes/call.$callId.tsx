@@ -31,7 +31,11 @@ import {
   gerarResumoCall,
 } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
-import { PROTOCOLO_COPILOTO } from "@/lib/fluxo-sdr";
+import {
+  PROTOCOLO_COPILOTO,
+  ROTULOS_INTENCOES,
+  type IntencaoCopiloto,
+} from "@/lib/fluxo-sdr";
 
 
 export const Route = createFileRoute("/call/$callId")({
@@ -59,6 +63,13 @@ type Sugestao = {
   temperatura?: string;
   sinal?: string;
   proxima_pergunta?: string;
+  fala?: string;
+  intencao?: string;
+  objetivo_roteiro?: string | null;
+  objetivo_texto?: string | null;
+  itens_cobertos?: string[];
+  itens_concluidos?: string[];
+  manter_atual?: boolean;
   porque?: string;
   alerta?: string | null;
   lembrete_etapa_pulada?: string | null;
@@ -116,12 +127,52 @@ function CallAoVivo() {
   const [comoFunciona, setComoFunciona] = useState(false);
   const [iniciando, setIniciando] = useState(false);
   const [semSomDoCliente, setSemSomDoCliente] = useState(false);
+  const [sugestaoAnterior, setSugestaoAnterior] = useState<string | null>(null);
+  const [cobertos, setCobertos] = useState<string[]>([]);
+  const [leadFalando, setLeadFalando] = useState(false);
 
   const fimRef = useRef<HTMLDivElement>(null);
   const debounceClienteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const falaClientePendenteRef = useRef("");
   const requisicaoRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const sugestaoRef = useRef<string>("");
+  const pendenteRef = useRef<Sugestao | null>(null);
+  const falandoAteRef = useRef(0);
+  const timerTrocaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerAnteriorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Nunca troca o texto enquanto o vendedor está falando: ele está lendo em voz alta.
+  const aplicarSugestao = useCallback((nova: Sugestao) => {
+    const texto = (nova.fala ?? nova.proxima_pergunta ?? "").trim();
+    if (!texto) return;
+    pendenteRef.current = nova;
+    const tentar = () => {
+      const espera = falandoAteRef.current - Date.now();
+      if (espera > 0) {
+        timerTrocaRef.current = setTimeout(tentar, Math.min(espera, 400));
+        return;
+      }
+      const alvo = pendenteRef.current;
+      if (!alvo) return;
+      pendenteRef.current = null;
+      const novoTexto = (alvo.fala ?? alvo.proxima_pergunta ?? "").trim();
+      if (novoTexto === sugestaoRef.current) return;
+      if (sugestaoRef.current) {
+        setSugestaoAnterior(sugestaoRef.current);
+        if (timerAnteriorRef.current) clearTimeout(timerAnteriorRef.current);
+        timerAnteriorRef.current = setTimeout(() => setSugestaoAnterior(null), 5000);
+      }
+      sugestaoRef.current = novoTexto;
+      setSugestao(alvo);
+      setHistorico((h) => [alvo, ...h]);
+      if (alvo.itens_concluidos?.length) setCobertos(alvo.itens_concluidos);
+      else if (alvo.itens_cobertos?.length)
+        setCobertos((c) => [...new Set([...c, ...(alvo.itens_cobertos ?? [])])]);
+    };
+    if (timerTrocaRef.current) clearTimeout(timerTrocaRef.current);
+    tentar();
+  }, []);
 
   const { data: call } = useQuery({
     queryKey: ["call", callId],
@@ -159,6 +210,10 @@ function CallAoVivo() {
     setSugestao(null);
     setHistorico([]);
     setPerguntaParcial("");
+    setSugestaoAnterior(null);
+    setCobertos([]);
+    sugestaoRef.current = "";
+    pendenteRef.current = null;
   }, [call?.oferta_id]);
 
   useEffect(
@@ -179,6 +234,8 @@ function CallAoVivo() {
 
 
   const onParcial = useCallback((falante: Falante, texto: string) => {
+    if (falante === "vendedor") falandoAteRef.current = Date.now() + 1500;
+    else setLeadFalando(true);
     setLinhas((prev) => {
       const semParcial = prev.filter((l) => !(l.parcial && l.falante === falante));
       return [...semParcial, { id: `p-${falante}`, falante, texto, parcial: true }];
@@ -211,6 +268,7 @@ function CallAoVivo() {
             ofertaId,
             cerebroVersao: versao,
             requestId,
+            sugestaoAtual: sugestaoRef.current,
             turno: Date.now() * 100 + (numero % 100),
             protocolo: PROTOCOLO_COPILOTO,
           }),
@@ -248,10 +306,7 @@ function CallAoVivo() {
                 evento.identidade?.protocolo === PROTOCOLO_COPILOTO;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
-              if (resposta?.proxima_pergunta) {
-                setSugestao(resposta);
-                setHistorico((h) => [resposta, ...h]);
-              }
+              if (resposta) aplicarSugestao(resposta);
             } else if (evento.tipo === "erro") {
               toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
             }
@@ -268,33 +323,41 @@ function CallAoVivo() {
         }
       }
     },
-    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr],
+    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, aplicarSugestao],
   );
 
   const onFinal = useCallback(
-    (falante: Falante, texto: string) => {
+    (falante: Falante, texto: string, fimDaFala: boolean) => {
       setLinhas((prev) => [
         ...prev.filter((l) => !(l.parcial && l.falante === falante)),
         { id: `${Date.now()}-${Math.random()}`, falante, texto },
       ]);
       if (falante === "vendedor") {
+        // Enquanto o vendedor fala, a sugestão na tela fica travada.
+        falandoAteRef.current = Date.now() + 1500;
         void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
         return;
       }
-      setPensando(true);
+      setLeadFalando(true);
       setPerguntaParcial("");
       falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
         .filter(Boolean)
         .join(" ");
       if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
-      debounceClienteRef.current = setTimeout(() => {
-        const falaAgrupada = falaClientePendenteRef.current.trim();
-        falaClientePendenteRef.current = "";
-        if (falaAgrupada) {
-          abortRef.current?.abort();
-          void analisarFalaCliente(falaAgrupada);
-        }
-      }, 200);
+      // Só analisamos quando o lead termina de falar de verdade.
+      debounceClienteRef.current = setTimeout(
+        () => {
+          const falaAgrupada = falaClientePendenteRef.current.trim();
+          falaClientePendenteRef.current = "";
+          setLeadFalando(false);
+          if (falaAgrupada) {
+            abortRef.current?.abort();
+            setPensando(true);
+            void analisarFalaCliente(falaAgrupada);
+          }
+        },
+        fimDaFala ? 120 : 900,
+      );
     },
     [analisarFalaCliente, callId, chamarFala],
   );
@@ -624,11 +687,24 @@ function CallAoVivo() {
                 )}
               </p>
               <ul className="space-y-1 text-xs text-muted-foreground">
-                {perguntas.map((p) => (
-                  <li key={p.id}>
-                    <span className="text-primary">[{p.categoria}]</span> {p.pergunta}
-                  </li>
-                ))}
+                {perguntas.map((p) => {
+                  const feito = cobertos.includes(p.id);
+                  return (
+                    <li
+                      key={p.id}
+                      className={cn(
+                        "flex gap-2",
+                        feito && "text-muted-foreground/60 line-through",
+                        sugestao?.objetivo_roteiro === p.id && "text-foreground",
+                      )}
+                    >
+                      <span className={feito ? "text-success" : "text-primary"}>
+                        {feito ? "✓" : "•"}
+                      </span>
+                      <span>{p.pergunta}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -651,21 +727,38 @@ function CallAoVivo() {
 
           {!sugestao && !perguntaParcial && (
             <p className="text-muted-foreground">
-              {pensando ? "Analisando a fala do cliente…" : "Aguardando a primeira fala do cliente."}
+              {leadFalando || pensando
+                ? "Ouvindo o cliente…"
+                : "Aguardando a primeira fala do cliente."}
             </p>
           )}
 
           {sugestao && (
             <div className="flex flex-1 flex-col">
-              {pensando && <p className="text-base text-muted-foreground">Analisando a nova fala…</p>}
-              <p className="mt-6 font-display text-3xl leading-snug text-primary">
-                {sugestao.proxima_pergunta}
+              {(leadFalando || pensando) && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-2 animate-pulse rounded-full bg-primary" /> ouvindo…
+                </p>
+              )}
+              <p
+                key={sugestao.fala ?? sugestao.proxima_pergunta}
+                className="mt-6 animate-in fade-in font-display text-3xl leading-snug text-primary duration-300"
+              >
+                {sugestao.fala ?? sugestao.proxima_pergunta}
               </p>
+              {sugestaoAnterior && (
+                <p className="mt-4 text-sm text-muted-foreground/70">Antes: {sugestaoAnterior}</p>
+              )}
               <div className="mt-auto flex flex-wrap gap-2 pt-6">
                 {call?.tipo === "sdr" ? (
                   <>
-                    <Chip>Etapa {(sugestao.etapa_qualificacao ?? "—").replaceAll("_", " ")}</Chip>
-                    <Chip>{(sugestao.resultado_sugerido ?? "—").replaceAll("_", " ")}</Chip>
+                    <Chip>
+                      {sugestao.intencao
+                        ? (ROTULOS_INTENCOES[sugestao.intencao as IntencaoCopiloto] ??
+                          sugestao.intencao.replaceAll("_", " "))
+                        : "orientando"}
+                    </Chip>
+                    {sugestao.objetivo_texto && <Chip>buscando: {sugestao.objetivo_texto}</Chip>}
                   </>
                 ) : (
                   <>

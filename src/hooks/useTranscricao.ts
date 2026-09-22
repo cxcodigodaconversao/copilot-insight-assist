@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ehEcoDoCliente } from "@/lib/fluxo-sdr";
 
 export type Falante = "cliente" | "vendedor";
 
@@ -7,7 +8,7 @@ export type MotivoFalha = "sem-suporte" | "mic-negado" | "sem-audio-da-aba" | "c
 type Opcoes = {
   idioma: string;
   onParcial: (falante: Falante, texto: string) => void;
-  onFinal: (falante: Falante, texto: string) => void;
+  onFinal: (falante: Falante, texto: string, fimDaFala: boolean) => void;
   onErro: (mensagem: string) => void;
 };
 
@@ -40,6 +41,7 @@ export function suportaCapturaDeAba() {
 
 export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
   const canais = useRef<Canal[]>([]);
+  const falasDoCliente = useRef<Array<{ texto: string; em: number }>>([]);
   const pausado = useRef(false);
   const niveis = useRef<{ vendedor: number; cliente: number }>({ vendedor: 0, cliente: 0 });
   const [ativo, setAtivo] = useState(false);
@@ -98,7 +100,15 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
           };
           const texto = msg.channel?.alternatives?.[0]?.transcript?.trim();
           if (!texto) return;
-          if (msg.speech_final || msg.is_final) onFinal(falante, texto);
+          // O microfone às vezes capta o som que sai da aba: isso é eco, não fala do vendedor.
+          if (falante === "vendedor" && ehEcoDoCliente(texto, falasDoCliente.current)) return;
+          if (falante === "cliente") {
+            falasDoCliente.current = [
+              ...falasDoCliente.current.filter((f) => Date.now() - f.em < 8000),
+              { texto, em: Date.now() },
+            ];
+          }
+          if (msg.speech_final || msg.is_final) onFinal(falante, texto, msg.speech_final === true);
           else onParcial(falante, texto);
         } catch {
           /* ignora mensagens de controle */
@@ -125,6 +135,7 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       void c.ctx.close();
     }
     canais.current = [];
+    falasDoCliente.current = [];
     niveis.current = { vendedor: 0, cliente: 0 };
     setNivelVendedor(0);
     setNivelCliente(0);
