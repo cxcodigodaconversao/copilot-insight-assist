@@ -246,7 +246,7 @@ export const gerarResumoCall = createServerFn({ method: "POST" })
       .join("\n");
 
     const texto = await chamarClaude({
-      system: montarSystemPrompt(ctx),
+      system: montarSystemPrompt(ctx, call.tipo === "sdr" ? "sdr" : "closer"),
       model: ctx.config["modelo_claude"] || "claude-sonnet-4-6",
       maxTokens: 1500,
       messages: [

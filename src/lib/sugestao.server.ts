@@ -86,6 +86,9 @@ export async function responderSugestao(request: Request): Promise<Response> {
   if (!call) return new Response("Call não encontrada", { status: 404 });
 
   const ctx = await carregarCerebro(supabase, call.oferta_id, true);
+  if (call.tipo === "sdr" && !ctx.completoSdr) {
+    return new Response("O cérebro SDR deste produto está incompleto.", { status: 409 });
+  }
   const minPalavras = Number(ctx.config["min_palavras_para_analisar"] ?? 6);
 
   const codificador = new TextEncoder();

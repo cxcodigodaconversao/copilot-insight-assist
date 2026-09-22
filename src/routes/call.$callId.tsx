@@ -26,7 +26,6 @@ import {
 import { useTranscricao, suportaCapturaDeAba, type Falante } from "@/hooks/useTranscricao";
 import { obterTokenDeepgram, registrarFala, gerarResumoCall } from "@/lib/copiloto.functions";
 import { cn } from "@/lib/utils";
-import { resolverPorProduto } from "@/lib/qualificacao";
 
 
 export const Route = createFileRoute("/call/$callId")({
@@ -123,20 +122,54 @@ function CallAoVivo() {
 
 
 
-  const { data: perguntas } = useQuery({
+  const { data: cerebroSdr } = useQuery({
     queryKey: ["perguntas-qualificacao-ativas", call?.oferta_id ?? "geral"],
-    enabled: ehSdr && !!call,
+    enabled: ehSdr && !!call?.oferta_id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("perguntas_qualificacao")
-        .select("id, categoria, pergunta, oferta_id, oculto")
-        .eq("ativo", true)
-        .order("ordem");
-      if (error) throw error;
-      // Cada produto usa somente o que é dele; sem cadastro próprio, usa o padrão geral.
-      return resolverPorProduto(data ?? [], call?.oferta_id ?? null);
+      const ofertaId = call?.oferta_id;
+      if (!ofertaId) return { perguntas: [], completo: false };
+      const [perguntasRes, regrasRes, criteriosRes] = await Promise.all([
+        supabase
+          .from("perguntas_qualificacao")
+          .select("id, categoria, pergunta")
+          .eq("oferta_id", ofertaId)
+          .eq("ativo", true)
+          .eq("oculto", false)
+          .order("ordem"),
+        supabase
+          .from("regras_copiloto")
+          .select("chave, valor")
+          .eq("oferta_id", ofertaId)
+          .in("chave", ["persona_sdr", "regras_conduta_sdr", "roteiro_sdr"]),
+        supabase
+          .from("criterios_qualificacao")
+          .select("id")
+          .eq("oferta_id", ofertaId)
+          .eq("ativo", true)
+          .eq("oculto", false),
+      ]);
+      const erro = perguntasRes.error ?? regrasRes.error ?? criteriosRes.error;
+      if (erro) throw erro;
+      const regras = new Map((regrasRes.data ?? []).map((r) => [r.chave, r.valor?.trim()]));
+      return {
+        perguntas: perguntasRes.data ?? [],
+        completo:
+          (perguntasRes.data?.length ?? 0) > 0 &&
+          (criteriosRes.data?.length ?? 0) > 0 &&
+          Boolean(regras.get("persona_sdr")) &&
+          Boolean(regras.get("regras_conduta_sdr")) &&
+          Boolean(regras.get("roteiro_sdr")),
+      };
     },
   });
+  const perguntas = cerebroSdr?.perguntas ?? [];
+  const cerebroSdrCompleto = !ehSdr || cerebroSdr?.completo === true;
+
+  useEffect(() => {
+    setSugestao(null);
+    setHistorico([]);
+    setPerguntaParcial("");
+  }, [call?.oferta_id]);
 
   const { data: config } = useQuery({
     queryKey: ["config_api"],
@@ -176,7 +209,11 @@ function CallAoVivo() {
             headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ callId, texto }),
           });
-          if (!res.ok || !res.body) throw new Error("Falha ao gerar a sugestão.");
+          if (!res.ok) {
+            const mensagem = await res.text();
+            throw new Error(mensagem || "Falha ao gerar a sugestão.");
+          }
+          if (!res.body) throw new Error("Falha ao gerar a sugestão.");
 
           const leitor = res.body.getReader();
           const decoder = new TextDecoder();
@@ -254,6 +291,10 @@ function CallAoVivo() {
   useEffect(() => () => pararRef.current(), []);
 
   async function iniciarEscuta() {
+    if (ehSdr && !cerebroSdrCompleto) {
+      setFalha(`O cérebro SDR de ${call?.ofertas?.nome ?? "este produto"} está incompleto. Peça ao administrador para completar o cadastro antes de gravar.`);
+      return;
+    }
     setFalha(null);
     setIniciando(true);
     try {
@@ -351,7 +392,7 @@ function CallAoVivo() {
                 size="lg"
                 className="h-16 px-10 text-lg glow-gold"
                 onClick={iniciarEscuta}
-                disabled={iniciando}
+                disabled={iniciando || (ehSdr && !cerebroSdrCompleto)}
               >
                 <Radio className="size-5" /> {iniciando ? "Preparando…" : "Começar a gravar"}
               </Button>
@@ -508,17 +549,17 @@ function CallAoVivo() {
             ))}
             <div ref={fimRef} />
           </div>
-          {ehSdr && !!perguntas?.length && (
+          {ehSdr && (
             <div className="mt-3 max-h-40 overflow-y-auto border-t border-border pt-3">
               <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
                 Roteiro de qualificação
-                {call?.oferta_id ? (
+                {call?.oferta_id && cerebroSdrCompleto ? (
                   <span className="ml-2 normal-case tracking-normal text-primary">
                     {call.ofertas?.nome}
                   </span>
                 ) : (
                   <span className="ml-2 normal-case tracking-normal text-destructive">
-                    nenhum produto escolhido — usando o padrão geral
+                    cérebro exclusivo incompleto
                   </span>
                 )}
               </p>
@@ -535,6 +576,11 @@ function CallAoVivo() {
 
 
         <div className="card-cx flex h-[70vh] flex-col p-6">
+          {ehSdr && call?.ofertas?.nome && (
+            <p className="mb-4 text-xs uppercase tracking-widest text-primary">
+              Cérebro ativo · {call.ofertas.nome}
+            </p>
+          )}
           {sugestao?.alerta && (
             <div className="mb-4 flex items-center gap-2 rounded-md bg-destructive px-4 py-3 text-sm text-destructive-foreground">
               <AlertTriangle className="size-4 shrink-0" />

@@ -1,7 +1,6 @@
 // Server-only: monta o system prompt do Copiloto CX e fala com a API da Anthropic.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { resolverPorProduto, temConteudoProprio } from "./qualificacao";
 
 type DB = SupabaseClient<Database>;
 
@@ -14,6 +13,7 @@ export type CriterioQualificacao = Database["public"]["Tables"]["criterios_quali
 export type TipoCall = "closer" | "sdr";
 
 export type CerebroContexto = {
+  ofertaId: string | null;
   oferta: Oferta | null;
   objecoes: Objecao[];
   perfis: PerfilDisc[];
@@ -21,6 +21,7 @@ export type CerebroContexto = {
   criterios: CriterioQualificacao[];
   regras: Record<string, string>;
   config: Record<string, string>;
+  completoSdr: boolean;
 };
 
 // Cache curto por produto: durante uma ligação o cérebro não muda,
@@ -48,51 +49,54 @@ export async function carregarCerebro(
 }
 
 async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<CerebroContexto> {
+  const filtrarOferta = <T extends { eq: (coluna: string, valor: string) => T; is: (coluna: string, valor: null) => T }>(
+    consulta: T,
+  ) => (ofertaId ? consulta.eq("oferta_id", ofertaId) : consulta.is("oferta_id", null));
+
   const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes] =
     await Promise.all([
       ofertaId
         ? supabase.from("ofertas").select("*").eq("id", ofertaId).maybeSingle()
         : Promise.resolve({ data: null, error: null } as const),
-      supabase.from("objecoes").select("*").eq("ativo", true).order("ordem", { ascending: true }),
+      filtrarOferta(
+        supabase.from("objecoes").select("*").eq("ativo", true),
+      ).order("ordem", { ascending: true }),
       supabase.from("perfis_disc").select("*").order("tipo", { ascending: true }),
-      supabase.from("regras_copiloto").select("*"),
+      filtrarOferta(supabase.from("regras_copiloto").select("*")),
       supabase.from("config_api").select("*"),
-      supabase
-        .from("perguntas_qualificacao")
-        .select("*")
-        .eq("ativo", true)
-        .order("ordem", { ascending: true }),
-      supabase
-        .from("criterios_qualificacao")
-        .select("*")
-        .eq("ativo", true)
-        .order("peso", { ascending: false }),
+      filtrarOferta(
+        supabase.from("perguntas_qualificacao").select("*").eq("ativo", true).eq("oculto", false),
+      ).order("ordem", { ascending: true }),
+      filtrarOferta(
+        supabase.from("criterios_qualificacao").select("*").eq("ativo", true).eq("oculto", false),
+      ).order("peso", { ascending: false }),
     ]);
 
-  const todasObjecoes = objecoesRes.data ?? [];
-  const objecoes = temConteudoProprio(todasObjecoes, ofertaId)
-    ? todasObjecoes.filter((o) => o.oferta_id === ofertaId)
-    : todasObjecoes.filter((o) => o.oferta_id === null);
-
-  // Regras: o valor cadastrado no produto sobrescreve o valor geral da mesma chave.
+  // Nunca misture regras entre produtos. O padrão geral só existe no cérebro geral.
   const regras: Record<string, string> = {};
-  for (const r of regrasRes.data ?? []) if (r.oferta_id === null) regras[r.chave] = r.valor ?? "";
-  if (ofertaId) {
-    for (const r of regrasRes.data ?? [])
-      if (r.oferta_id === ofertaId) regras[r.chave] = r.valor ?? "";
-  }
+  for (const r of regrasRes.data ?? []) regras[r.chave] = r.valor ?? "";
 
   const config: Record<string, string> = {};
   for (const c of configRes.data ?? []) config[c.chave] = c.valor ?? "";
 
   return {
+    ofertaId,
     oferta: (ofertaRes.data as Oferta | null) ?? null,
-    objecoes,
+    objecoes: objecoesRes.data ?? [],
     perfis: perfisRes.data ?? [],
-    perguntas: resolverPorProduto(perguntasRes.data ?? [], ofertaId),
-    criterios: resolverPorProduto(criteriosRes.data ?? [], ofertaId),
+    perguntas: perguntasRes.data ?? [],
+    criterios: criteriosRes.data ?? [],
     regras,
     config,
+    completoSdr:
+      !ofertaId ||
+      Boolean(
+        regras["persona_sdr"]?.trim() &&
+          regras["regras_conduta_sdr"]?.trim() &&
+          regras["roteiro_sdr"]?.trim() &&
+          perguntasRes.data?.length &&
+          criteriosRes.data?.length,
+      ),
   };
 }
 
@@ -106,6 +110,9 @@ function textoPerfis(ctx: CerebroContexto): string {
 }
 
 function montarSystemPromptSdr(ctx: CerebroContexto): string {
+  if (ctx.ofertaId && !ctx.completoSdr) {
+    throw new Error(`O cérebro SDR do produto ${ctx.oferta?.nome ?? "selecionado"} está incompleto.`);
+  }
   const perguntas = ctx.perguntas
     .map(
       (p) =>

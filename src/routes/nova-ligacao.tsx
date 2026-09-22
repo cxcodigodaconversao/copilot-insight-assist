@@ -41,14 +41,13 @@ function NovaLigacao() {
   const origens = useCadastro("origens").data;
   const clientes = useCadastro("clientes").data;
 
-  // Lembra o último produto e origem usados, para a próxima ligação ser um clique só.
+  // Lembra apenas a origem. O produto sempre exige escolha explícita para nunca
+  // abrir uma ligação com o cérebro usado na ligação anterior.
   useEffect(() => {
     try {
       const salvo = JSON.parse(localStorage.getItem(CHAVE_MEMORIA) ?? "{}") as {
-        ofertaId?: string;
         origem?: string;
       };
-      if (salvo.ofertaId) setOfertaId(salvo.ofertaId);
       if (salvo.origem) setOrigem(salvo.origem);
     } catch {
       /* primeira vez */
@@ -62,7 +61,7 @@ function NovaLigacao() {
     e.preventDefault();
     if (!user) return;
     setSalvando(true);
-    localStorage.setItem(CHAVE_MEMORIA, JSON.stringify({ ofertaId, origem }));
+    localStorage.setItem(CHAVE_MEMORIA, JSON.stringify({ origem }));
     const { data, error } = await supabase
       .from("calls")
       .insert({

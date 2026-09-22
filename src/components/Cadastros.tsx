@@ -443,12 +443,9 @@ type Heranca = {
   base_id: string | null;
 };
 
-// Itens gerais (oferta_id null) servem de base; o produto pode personalizar ou ocultar cada um.
+// O editor espelha a execução: dentro de um produto, só aparecem itens desse produto.
 function mesclarHeranca<T extends Heranca>(linhas: T[], ofertaId: string | null) {
-  const doProduto = ofertaId ? linhas.filter((l) => l.oferta_id === ofertaId) : [];
-  const substituidos = new Set(doProduto.map((l) => l.base_id).filter(Boolean) as string[]);
-  const globais = linhas.filter((l) => l.oferta_id === null && !substituidos.has(l.id));
-  return [...globais, ...doProduto];
+  return linhas.filter((l) => l.oferta_id === ofertaId);
 }
 
 function Etiqueta({ proprio, emUso = true }: { proprio: boolean; emUso?: boolean }) {
