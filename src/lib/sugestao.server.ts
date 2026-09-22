@@ -73,22 +73,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
 
   const inicio = Date.now();
 
-  const [callRes, falaRes, falasRes] = await Promise.all([
-    supabase.from("calls").select("*").eq("id", callId).maybeSingle(),
-    supabase
-      .from("falas")
-      .insert({ call_id: callId, falante: "cliente", texto })
-      .select("id")
-      .single(),
-    supabase
-      .from("falas")
-      .select("falante, texto, created_at")
-      .eq("call_id", callId)
-      .order("created_at", { ascending: false })
-      .limit(20),
-  ]);
-
-  const call = callRes.data;
+  const { data: call } = await supabase.from("calls").select("*").eq("id", callId).maybeSingle();
   if (!call) return new Response("Call não encontrada", { status: 404 });
   if (call.tipo === "sdr" && (!call.oferta_id || body.ofertaId !== call.oferta_id)) {
     return new Response("O produto da ligação mudou. Reabra a ligação antes de continuar.", {
@@ -103,6 +88,19 @@ export async function responderSugestao(request: Request): Promise<Response> {
   if (call.tipo === "sdr" && !ctx.completoSdr) {
     return new Response("O cérebro SDR deste produto está incompleto.", { status: 409 });
   }
+  const [falaRes, falasRes] = await Promise.all([
+    supabase
+      .from("falas")
+      .insert({ call_id: callId, falante: "cliente", texto })
+      .select("id")
+      .single(),
+    supabase
+      .from("falas")
+      .select("falante, texto, created_at")
+      .eq("call_id", callId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
   const minPalavras = Number(ctx.config["min_palavras_para_analisar"] ?? 6);
 
   const codificador = new TextEncoder();

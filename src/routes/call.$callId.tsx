@@ -40,6 +40,8 @@ export const Route = createFileRoute("/call/$callId")({
       { name: "description", content: "Transcrição ao vivo e sugestões do copiloto durante a reunião." },
       { property: "og:title", content: "Call ao vivo — Copiloto CX" },
       { property: "og:description", content: "Transcrição ao vivo e sugestões durante a reunião." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: CallAoVivo,
