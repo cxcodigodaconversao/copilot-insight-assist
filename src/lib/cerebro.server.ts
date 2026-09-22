@@ -267,6 +267,32 @@ Quando "acao" for "manter", envie apenas {"acao": "manter"}.
 ${ctx.regras["formato_saida_extra"] ?? ""}`;
 }
 
+/** Resumo factual do produto para o copiloto consultivo (limitado, só o que está cadastrado). */
+export function textoCerebroProduto(ctx: CerebroContexto, limite = 6000): string {
+  const o = ctx.oferta;
+  const objecoes = ctx.objecoes
+    .slice(0, 8)
+    .map((obj) => `- Quando o lead disser algo como "${obj.gatilho}": ${obj.como_quebrar}`)
+    .join("\n");
+  const texto = `Produto: ${o?.nome ?? ""}
+Descrição: ${o?.descricao ?? ""}
+Preço e condições (inclui bolsa, quando cadastrado): ${o?.preco_condicoes ?? "não cadastrado"}
+Garantia: ${o?.garantia ?? "não cadastrada"}
+Diferenciais: ${o?.diferenciais ?? "não cadastrados"}
+Público ideal: ${o?.publico_ideal ?? "não cadastrado"}
+
+QUEBRAS DE OBJEÇÃO CADASTRADAS
+${objecoes || "- nenhuma cadastrada"}
+
+INSTRUÇÕES DO LÍDER
+${ctx.regras["instrucoes_livres"] ?? ""}
+
+TOM E CONDUTA DESTE PRODUTO
+${ctx.regras["persona_sdr"] ?? ""}
+${ctx.regras["regras_conduta_sdr"] ?? ""}`;
+  return texto.slice(0, limite);
+}
+
 export function extrairJson(texto: string): unknown {
   const limpo = texto
     .trim()
