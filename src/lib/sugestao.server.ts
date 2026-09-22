@@ -104,26 +104,10 @@ function clienteComToken(token: string) {
   });
 }
 
-// Cache curto em memória: a mesma ligação dispara várias análises por minuto,
-// e nem a sessão nem o cérebro do produto mudam nesse intervalo.
+// Cache curto de sessão: a mesma ligação dispara várias análises por minuto
+// e a sessão não muda nesse intervalo. (O cérebro já tem cache em cerebro.server.ts.)
 const claimsCache = new Map<string, { sub: string; ate: number }>();
-const cerebroCache = new Map<string, { ctx: CtxCerebro; ate: number }>();
 const TTL_CLAIMS_MS = 30_000;
-const TTL_CEREBRO_MS = 15_000;
-
-type CtxCerebro = Awaited<ReturnType<typeof carregarCerebro>>;
-
-async function carregarCerebroComCache(
-  supabase: ReturnType<typeof clienteComToken>,
-  ofertaId: string | null,
-): Promise<CtxCerebro> {
-  const chave = ofertaId ?? "__sem_produto__";
-  const emCache = cerebroCache.get(chave);
-  if (emCache && emCache.ate > Date.now()) return emCache.ctx;
-  const ctx = await carregarCerebro(supabase, ofertaId, true);
-  cerebroCache.set(chave, { ctx, ate: Date.now() + TTL_CEREBRO_MS });
-  return ctx;
-}
 
 /** Extrai o que já foi gerado do campo "fala" do JSON parcial, para streaming na tela. */
 function falaParcial(acumulado: string): string {
