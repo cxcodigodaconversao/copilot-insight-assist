@@ -683,11 +683,24 @@ function CallAoVivo() {
                 )}
               </p>
               <ul className="space-y-1 text-xs text-muted-foreground">
-                {perguntas.map((p) => (
-                  <li key={p.id}>
-                    <span className="text-primary">[{p.categoria}]</span> {p.pergunta}
-                  </li>
-                ))}
+                {perguntas.map((p) => {
+                  const feito = cobertos.includes(p.id);
+                  return (
+                    <li
+                      key={p.id}
+                      className={cn(
+                        "flex gap-2",
+                        feito && "text-muted-foreground/60 line-through",
+                        sugestao?.objetivo_roteiro === p.id && "text-foreground",
+                      )}
+                    >
+                      <span className={feito ? "text-success" : "text-primary"}>
+                        {feito ? "✓" : "•"}
+                      </span>
+                      <span>{p.pergunta}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
