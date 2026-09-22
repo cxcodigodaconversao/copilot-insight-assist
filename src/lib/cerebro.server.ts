@@ -380,6 +380,7 @@ export async function chamarClaudeStream(opts: {
     body: JSON.stringify({
       model: opts.model,
       max_tokens: opts.maxTokens,
+      ...(opts.temperatura != null ? { temperature: opts.temperatura } : {}),
       stream: true,
       system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
       messages: opts.messages,
