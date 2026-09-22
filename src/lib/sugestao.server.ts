@@ -332,13 +332,15 @@ ${texto}`;
               );
           const perguntasPuladas = [
             ...new Set([...estado.perguntas_puladas, ...puladasNesteTurno.map((p) => p.id)]),
-          ];
+          ].filter((id) => !novasRespondidas.includes(id));
           const idsEncerrados = new Set([...perguntasRespondidas, ...perguntasPuladas]);
           const proxima = perguntasDisponiveis.find((p) => !idsEncerrados.has(p.id));
           const respostaVaga = resposta["resposta_vaga"] === true;
+          const pendenteJaOrientada =
+            pendente && normalizar(estado.ultima_orientacao) === normalizar(pendente.pergunta);
           const orientacao = comentarioTecnico
             ? ""
-            : respostaVaga && pendente?.pergunta_followup
+            : respostaVaga && pendenteJaOrientada && pendente.pergunta_followup
               ? pendente.pergunta_followup
               : proxima?.pergunta ?? "Confirme o agendamento e o compromisso do lead.";
           const etapaFinal = etapaDaPergunta(proxima);
