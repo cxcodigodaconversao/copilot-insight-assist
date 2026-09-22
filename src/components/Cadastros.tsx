@@ -497,6 +497,7 @@ function PerguntasQualificacao({ ofertaId }: { ofertaId: string | null }) {
   });
 
   const lista = mesclarHeranca(data ?? [], ofertaId);
+  const temProprios = temConteudoProprio(data ?? [], ofertaId);
 
   function recarregar() {
     qc.invalidateQueries({ queryKey: ["perguntas-qualificacao"] });
