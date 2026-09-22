@@ -123,12 +123,52 @@ function CallAoVivo() {
   const [comoFunciona, setComoFunciona] = useState(false);
   const [iniciando, setIniciando] = useState(false);
   const [semSomDoCliente, setSemSomDoCliente] = useState(false);
+  const [sugestaoAnterior, setSugestaoAnterior] = useState<string | null>(null);
+  const [cobertos, setCobertos] = useState<string[]>([]);
+  const [leadFalando, setLeadFalando] = useState(false);
 
   const fimRef = useRef<HTMLDivElement>(null);
   const debounceClienteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const falaClientePendenteRef = useRef("");
   const requisicaoRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const sugestaoRef = useRef<string>("");
+  const pendenteRef = useRef<Sugestao | null>(null);
+  const falandoAteRef = useRef(0);
+  const timerTrocaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerAnteriorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Nunca troca o texto enquanto o vendedor está falando: ele está lendo em voz alta.
+  const aplicarSugestao = useCallback((nova: Sugestao) => {
+    const texto = (nova.fala ?? nova.proxima_pergunta ?? "").trim();
+    if (!texto) return;
+    pendenteRef.current = nova;
+    const tentar = () => {
+      const espera = falandoAteRef.current - Date.now();
+      if (espera > 0) {
+        timerTrocaRef.current = setTimeout(tentar, Math.min(espera, 400));
+        return;
+      }
+      const alvo = pendenteRef.current;
+      if (!alvo) return;
+      pendenteRef.current = null;
+      const novoTexto = (alvo.fala ?? alvo.proxima_pergunta ?? "").trim();
+      if (novoTexto === sugestaoRef.current) return;
+      if (sugestaoRef.current) {
+        setSugestaoAnterior(sugestaoRef.current);
+        if (timerAnteriorRef.current) clearTimeout(timerAnteriorRef.current);
+        timerAnteriorRef.current = setTimeout(() => setSugestaoAnterior(null), 5000);
+      }
+      sugestaoRef.current = novoTexto;
+      setSugestao(alvo);
+      setHistorico((h) => [alvo, ...h]);
+      if (alvo.itens_concluidos?.length) setCobertos(alvo.itens_concluidos);
+      else if (alvo.itens_cobertos?.length)
+        setCobertos((c) => [...new Set([...c, ...(alvo.itens_cobertos ?? [])])]);
+    };
+    if (timerTrocaRef.current) clearTimeout(timerTrocaRef.current);
+    tentar();
+  }, []);
 
   const { data: call } = useQuery({
     queryKey: ["call", callId],
