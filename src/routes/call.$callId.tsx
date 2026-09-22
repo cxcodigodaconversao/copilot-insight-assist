@@ -209,7 +209,7 @@ function CallAoVivo() {
             ofertaId,
             cerebroVersao: versao,
             requestId,
-            turno: Date.now(),
+            turno: Math.floor(Date.now() / 1000),
           }),
           signal: controller.signal,
         });
