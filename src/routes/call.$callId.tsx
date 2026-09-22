@@ -140,7 +140,7 @@ function CallAoVivo() {
 
   const { data: cerebroSdr } = useQuery({
     queryKey: ["cerebro-estrito-da-call", callId, call?.oferta_id ?? "sem-produto"],
-    enabled: ehSdr,
+    enabled: !!call,
     queryFn: () => carregarCerebroDaCall({ data: { callId } }),
   });
   const perguntas = cerebroSdr?.perguntas ?? [];
@@ -280,6 +280,9 @@ function CallAoVivo() {
       abortRef.current?.abort();
       requisicaoRef.current += 1;
       setPensando(true);
+      setPerguntaParcial(
+        perguntas[Math.min(historico.length, Math.max(0, perguntas.length - 1))]?.pergunta ?? "",
+      );
       falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
         .filter(Boolean)
         .join(" ");
