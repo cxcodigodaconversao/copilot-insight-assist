@@ -449,14 +449,22 @@ function mesclarHeranca<T extends Heranca>(linhas: T[], ofertaId: string | null)
   return [...globais, ...doProduto];
 }
 
-function Etiqueta({ proprio }: { proprio: boolean }) {
-  return proprio ? (
-    <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-      Personalizado deste produto
-    </span>
-  ) : (
-    <span className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-      Padrão
+function Etiqueta({ proprio, emUso = true }: { proprio: boolean; emUso?: boolean }) {
+  if (proprio) {
+    return (
+      <span className="rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+        Personalizado deste produto
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "rounded border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground",
+        !emUso && "opacity-60",
+      )}
+    >
+      {emUso ? "Padrão" : "Padrão — não usado neste produto"}
     </span>
   );
 }
