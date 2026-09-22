@@ -619,6 +619,7 @@ function CallAoVivo() {
           {ehSdr && call?.ofertas?.nome && (
             <p className="mb-4 text-xs uppercase tracking-widest text-primary">
               Cérebro ativo · {call.ofertas.nome}
+              {cerebroSdr?.versao ? ` · versão ${cerebroSdr.versao}` : ""}
             </p>
           )}
           {sugestao?.alerta && (
