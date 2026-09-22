@@ -23,6 +23,7 @@ export type Database = {
           data_reuniao_agendada: string | null
           email_lead: string
           encerrada_em: string | null
+          estado_qualificacao: Json
           forma_pagamento: string | null
           funil: string
           id: string
@@ -43,6 +44,7 @@ export type Database = {
           telefone_lead: string
           time: string
           tipo: string
+          turno_copiloto: number
           valor_coletado: number
           valor_pendente: number
           valor_vendido: number
@@ -56,6 +58,7 @@ export type Database = {
           data_reuniao_agendada?: string | null
           email_lead?: string
           encerrada_em?: string | null
+          estado_qualificacao?: Json
           forma_pagamento?: string | null
           funil?: string
           id?: string
@@ -76,6 +79,7 @@ export type Database = {
           telefone_lead?: string
           time?: string
           tipo?: string
+          turno_copiloto?: number
           valor_coletado?: number
           valor_pendente?: number
           valor_vendido?: number
@@ -89,6 +93,7 @@ export type Database = {
           data_reuniao_agendada?: string | null
           email_lead?: string
           encerrada_em?: string | null
+          estado_qualificacao?: Json
           forma_pagamento?: string | null
           funil?: string
           id?: string
@@ -109,6 +114,7 @@ export type Database = {
           telefone_lead?: string
           time?: string
           tipo?: string
+          turno_copiloto?: number
           valor_coletado?: number
           valor_pendente?: number
           valor_vendido?: number
@@ -724,12 +730,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      concluir_turno_copiloto: {
+        Args: { _call_id: string; _estado: Json; _turno: number }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      iniciar_turno_copiloto: {
+        Args: {
+          _call_id: string
+          _cerebro_versao: string
+          _oferta_id: string
+          _turno: number
+        }
+        Returns: Json
       }
       is_adm: { Args: never; Returns: boolean }
       is_lider: { Args: never; Returns: boolean }
