@@ -736,15 +736,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      concluir_turno_copiloto:
-        | {
-            Args: { _call_id: string; _estado: Json; _turno: number }
-            Returns: boolean
-          }
-        | {
-            Args: { _call_id: string; _estado: Json; _turno: number }
-            Returns: boolean
-          }
+      concluir_turno_copiloto: {
+        Args: { _call_id: string; _estado: Json; _turno: number }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -752,25 +747,15 @@ export type Database = {
         }
         Returns: boolean
       }
-      iniciar_turno_copiloto:
-        | {
-            Args: {
-              _call_id: string
-              _cerebro_versao: string
-              _oferta_id: string
-              _turno: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _call_id: string
-              _cerebro_versao: string
-              _oferta_id: string
-              _turno: number
-            }
-            Returns: Json
-          }
+      iniciar_turno_copiloto: {
+        Args: {
+          _call_id: string
+          _cerebro_versao: string
+          _oferta_id: string
+          _turno: number
+        }
+        Returns: Json
+      }
       is_adm: { Args: never; Returns: boolean }
       is_lider: { Args: never; Returns: boolean }
       pode_ver_tudo: { Args: never; Returns: boolean }
