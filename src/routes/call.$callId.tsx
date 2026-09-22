@@ -230,6 +230,8 @@ function CallAoVivo() {
 
 
   const onParcial = useCallback((falante: Falante, texto: string) => {
+    if (falante === "vendedor") falandoAteRef.current = Date.now() + 1500;
+    else setLeadFalando(true);
     setLinhas((prev) => {
       const semParcial = prev.filter((l) => !(l.parcial && l.falante === falante));
       return [...semParcial, { id: `p-${falante}`, falante, texto, parcial: true }];
