@@ -376,6 +376,9 @@ ${texto}`;
         controller.enqueue(linha(evento));
       };
       try {
+        // Streaming real: cada pedaço do campo "fala" vai para a tela assim que é gerado,
+        // então o SDR começa a ler em ~1 s em vez de esperar a resposta inteira.
+        let ultimaParcialEnviada = 0;
         const chamada = chamarClaudeStream({
           system,
           model,
@@ -383,7 +386,16 @@ ${texto}`;
           ...(call.tipo === "sdr" ? { temperatura: 0.6 } : {}),
           messages: [{ role: "user", content: userMessage }],
           signal: request.signal,
-          onTexto: () => {},
+          onTexto: (_pedaco, acumulado) => {
+            if (call.tipo !== "sdr") return;
+            // Quando a IA decide manter a sugestão atual, não há texto novo para digitar.
+            if (acumulado.startsWith('{"manter_atual": true') || acumulado.startsWith('{ "manter_atual": true')) return;
+            const parcial = falaParcial(acumulado);
+            if (parcial.length - ultimaParcialEnviada >= 6) {
+              ultimaParcialEnviada = parcial.length;
+              enviar({ tipo: "parcial", fala: parcial });
+            }
+          },
         });
 
         // Rede de segurança: se passar de 2,5 s, mantemos o que já está na tela
