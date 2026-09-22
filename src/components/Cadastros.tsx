@@ -7,6 +7,8 @@ import { convidarMembro } from "@/lib/equipe.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { temConteudoProprio } from "@/lib/qualificacao";
 
 export type TabelaCadastro =
   | "times"
