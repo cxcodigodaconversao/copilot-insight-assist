@@ -89,8 +89,8 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
     oferta: (ofertaRes.data as Oferta | null) ?? null,
     objecoes,
     perfis: perfisRes.data ?? [],
-    perguntas: mesclarPorProduto(perguntasRes.data ?? [], ofertaId),
-    criterios: mesclarPorProduto(criteriosRes.data ?? [], ofertaId),
+    perguntas: resolverPorProduto(perguntasRes.data ?? [], ofertaId),
+    criterios: resolverPorProduto(criteriosRes.data ?? [], ofertaId),
     regras,
     config,
   };
