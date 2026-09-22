@@ -317,33 +317,41 @@ function CallAoVivo() {
         }
       }
     },
-    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr],
+    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, aplicarSugestao],
   );
 
   const onFinal = useCallback(
-    (falante: Falante, texto: string) => {
+    (falante: Falante, texto: string, fimDaFala: boolean) => {
       setLinhas((prev) => [
         ...prev.filter((l) => !(l.parcial && l.falante === falante)),
         { id: `${Date.now()}-${Math.random()}`, falante, texto },
       ]);
       if (falante === "vendedor") {
+        // Enquanto o vendedor fala, a sugestão na tela fica travada.
+        falandoAteRef.current = Date.now() + 1500;
         void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
         return;
       }
-      setPensando(true);
+      setLeadFalando(true);
       setPerguntaParcial("");
       falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
         .filter(Boolean)
         .join(" ");
       if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
-      debounceClienteRef.current = setTimeout(() => {
-        const falaAgrupada = falaClientePendenteRef.current.trim();
-        falaClientePendenteRef.current = "";
-        if (falaAgrupada) {
-          abortRef.current?.abort();
-          void analisarFalaCliente(falaAgrupada);
-        }
-      }, 200);
+      // Só analisamos quando o lead termina de falar de verdade.
+      debounceClienteRef.current = setTimeout(
+        () => {
+          const falaAgrupada = falaClientePendenteRef.current.trim();
+          falaClientePendenteRef.current = "";
+          setLeadFalando(false);
+          if (falaAgrupada) {
+            abortRef.current?.abort();
+            setPensando(true);
+            void analisarFalaCliente(falaAgrupada);
+          }
+        },
+        fimDaFala ? 120 : 900,
+      );
     },
     [analisarFalaCliente, callId, chamarFala],
   );
