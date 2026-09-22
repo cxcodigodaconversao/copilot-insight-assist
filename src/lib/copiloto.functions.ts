@@ -18,6 +18,30 @@ const TesteInput = z.object({
 
 const ResumoInput = z.object({ callId: z.string().uuid() });
 
+export const obterCerebroDaCall = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ callId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { carregarCerebro } = await import("./cerebro.server");
+    const { data: call, error } = await context.supabase
+      .from("calls")
+      .select("id, tipo, oferta_id, ofertas(nome)")
+      .eq("id", data.callId)
+      .maybeSingle();
+    if (error || !call) throw new Error("Ligação não encontrada.");
+    const ctx = await carregarCerebro(context.supabase, call.oferta_id);
+    if (call.tipo === "sdr" && !call.oferta_id) {
+      throw new Error("Esta ligação não tem um produto definido.");
+    }
+    return {
+      ofertaId: call.oferta_id,
+      produto: call.ofertas?.nome ?? ctx.oferta?.nome ?? "",
+      versao: ctx.versao,
+      completo: call.tipo !== "sdr" || ctx.completoSdr,
+      perguntas: ctx.perguntas.map((p) => ({ id: p.id, categoria: p.categoria, pergunta: p.pergunta })),
+    };
+  });
+
 /** Gera a sugestão do Copiloto a partir da última fala do cliente. */
 export const gerarSugestao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -14,6 +14,7 @@ export type TipoCall = "closer" | "sdr";
 
 export type CerebroContexto = {
   ofertaId: string | null;
+  versao: string;
   oferta: Oferta | null;
   objecoes: Objecao[];
   perfis: PerfilDisc[];
@@ -23,6 +24,16 @@ export type CerebroContexto = {
   config: Record<string, string>;
   completoSdr: boolean;
 };
+
+function versaoDoConteudo(partes: unknown[]): string {
+  const texto = JSON.stringify(partes);
+  let hash = 2166136261;
+  for (let i = 0; i < texto.length; i++) {
+    hash ^= texto.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0).toString(36);
+}
 
 // Cache curto por produto: durante uma ligação o cérebro não muda,
 // e montá-lo custa 7 consultas ao banco a cada fala do cliente.
@@ -79,8 +90,18 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
   const config: Record<string, string> = {};
   for (const c of configRes.data ?? []) config[c.chave] = c.valor ?? "";
 
+  const versao = versaoDoConteudo([
+    ofertaId,
+    ofertaRes.data,
+    objecoesRes.data,
+    regrasRes.data,
+    perguntasRes.data,
+    criteriosRes.data,
+  ]);
+
   return {
     ofertaId,
+    versao,
     oferta: (ofertaRes.data as Oferta | null) ?? null,
     objecoes: objecoesRes.data ?? [],
     perfis: perfisRes.data ?? [],
@@ -124,7 +145,13 @@ function montarSystemPromptSdr(ctx: CerebroContexto): string {
     .map((c) => `${c.criterio} (peso ${c.peso}) — como identificar: ${c.como_identificar}`)
     .join("\n");
 
-  return `${ctx.regras["persona_sdr"] ?? ""}
+  return `IDENTIDADE IMUTÁVEL DESTE CÉREBRO
+Produto: ${ctx.oferta?.nome ?? ""}
+ID do produto: ${ctx.ofertaId ?? ""}
+Versão do cérebro: ${ctx.versao}
+Use exclusivamente o conteúdo abaixo. Nunca cite, reutilize ou complete com informações de outro produto. Se a transcrição mencionar outro negócio, trate como desvio, não como contexto deste produto.
+
+${ctx.regras["persona_sdr"] ?? ""}
 
 Você aplica a etapa de qualificação do método CX — Código da Conversão: leitura comportamental (DISC) e condução por perguntas estratégicas, com um único objetivo final: agendar o diagnóstico com o especialista.
 
@@ -157,8 +184,8 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 === FORMATO DE RESPOSTA ===
 Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {
-  "acao": "manter | orientar | alerta",
   "proxima_pergunta": "a pergunta exata que o SDR deve fazer agora, em linguagem falada",
+  "acao": "manter | orientar | alerta",
   "leitura": "1 frase: o que o lead acabou de revelar",
   "perfil_disc": {"tipo": "D|I|S|C|indefinido", "confianca": 0.0},
   "etapa_qualificacao": "abertura | diagnostico | pontuacao | agendamento | encerramento",
@@ -169,7 +196,7 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
   "resultado_sugerido": "seguir_qualificando | agendar_agora | desqualificar",
   "alerta": "só preencha se o SDR estiver perdendo o lead ou pulando etapa, senão null"
 }
-Escreva os campos exatamente nessa ordem, começando por "acao" e "proxima_pergunta". Seja direto: frases curtas.
+Escreva os campos exatamente nessa ordem, começando por "proxima_pergunta" e "acao". Seja direto: frases curtas.
 Quando "acao" for "manter", envie apenas {"acao": "manter"}.
 ${ctx.regras["formato_saida_extra"] ?? ""}`;
 }
@@ -306,6 +333,7 @@ export async function chamarClaudeStream(opts: {
   model: string;
   maxTokens: number;
   onTexto: (pedaco: string, acumulado: string) => void;
+  signal?: AbortSignal;
 }): Promise<string> {
   const apiKey = process.env["ANTHROPIC_API_KEY"];
   if (!apiKey) {
@@ -328,6 +356,7 @@ export async function chamarClaudeStream(opts: {
       system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
       messages: opts.messages,
     }),
+    signal: opts.signal,
   });
 
   if (!res.ok || !res.body) {

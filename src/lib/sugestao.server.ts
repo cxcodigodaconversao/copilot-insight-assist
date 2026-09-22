@@ -60,7 +60,13 @@ export async function responderSugestao(request: Request): Promise<Response> {
   const { data: claims, error: erroClaims } = await supabase.auth.getClaims(token);
   if (erroClaims || !claims?.claims?.sub) return new Response("Unauthorized", { status: 401 });
 
-  const body = (await request.json()) as { callId?: string; texto?: string };
+  const body = (await request.json()) as {
+    callId?: string;
+    texto?: string;
+    ofertaId?: string;
+    cerebroVersao?: string;
+    requestId?: string;
+  };
   const callId = body.callId ?? "";
   const texto = (body.texto ?? "").trim();
   if (!callId || !texto) return new Response("Requisição inválida", { status: 400 });
@@ -84,8 +90,16 @@ export async function responderSugestao(request: Request): Promise<Response> {
 
   const call = callRes.data;
   if (!call) return new Response("Call não encontrada", { status: 404 });
+  if (!call.oferta_id || body.ofertaId !== call.oferta_id) {
+    return new Response("O produto da ligação mudou. Reabra a ligação antes de continuar.", {
+      status: 409,
+    });
+  }
 
   const ctx = await carregarCerebro(supabase, call.oferta_id, true);
+  if (body.cerebroVersao !== ctx.versao) {
+    return new Response("O cérebro deste produto foi atualizado. Reabra a ligação.", { status: 409 });
+  }
   if (call.tipo === "sdr" && !ctx.completoSdr) {
     return new Response("O cérebro SDR deste produto está incompleto.", { status: 409 });
   }
@@ -100,7 +114,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     });
   }
 
-  const ultimas = (falasRes.data ?? []).slice().reverse();
+  const ultimas = (falasRes.data ?? []).slice(0, 10).reverse();
   const minutos = Math.max(
     0,
     Math.round((Date.now() - new Date(call.iniciada_em).getTime()) / 60000),
@@ -126,7 +140,7 @@ ${texto}`;
     ctx.config["modelo_claude_rapido"] ||
     ctx.config["modelo_claude"] ||
     "claude-haiku-4-5-20251001";
-  const maxTokens = Number(ctx.config["max_tokens_ao_vivo"] ?? 400);
+  const maxTokens = Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -137,6 +151,7 @@ ${texto}`;
           model,
           maxTokens,
           messages: [{ role: "user", content: userMessage }],
+          signal: request.signal,
           onTexto: (_p, acumulado) => {
             const parcial = perguntaParcial(acumulado);
             if (parcial && parcial !== ultimaParcial) {
@@ -156,12 +171,18 @@ ${texto}`;
         }
 
         const latencia = Date.now() - inicio;
-        controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia }));
+        const identidade = {
+          oferta_id: call.oferta_id,
+          produto: ctx.oferta?.nome ?? "",
+          cerebro_versao: ctx.versao,
+          request_id: body.requestId ?? "",
+        };
+        controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia, identidade }));
 
         await supabase.from("sugestoes").insert({
           call_id: callId,
           fala_id: falaRes.data?.id ?? null,
-          resposta: resposta as never,
+          resposta: { ...resposta, _cerebro: identidade } as never,
           latencia_ms: latencia,
         });
       } catch (e) {
