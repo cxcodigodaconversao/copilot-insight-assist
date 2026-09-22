@@ -90,14 +90,14 @@ export async function responderSugestao(request: Request): Promise<Response> {
 
   const call = callRes.data;
   if (!call) return new Response("Call não encontrada", { status: 404 });
-  if (!call.oferta_id || body.ofertaId !== call.oferta_id) {
+  if (call.tipo === "sdr" && (!call.oferta_id || body.ofertaId !== call.oferta_id)) {
     return new Response("O produto da ligação mudou. Reabra a ligação antes de continuar.", {
       status: 409,
     });
   }
 
-  const ctx = await carregarCerebro(supabase, call.oferta_id, true);
-  if (body.cerebroVersao !== ctx.versao) {
+  const ctx = await carregarCerebro(supabase, call.oferta_id);
+  if (call.tipo === "sdr" && body.cerebroVersao !== ctx.versao) {
     return new Response("O cérebro deste produto foi atualizado. Reabra a ligação.", { status: 409 });
   }
   if (call.tipo === "sdr" && !ctx.completoSdr) {
@@ -145,6 +145,7 @@ ${texto}`;
   const stream = new ReadableStream({
     async start(controller) {
       let ultimaParcial = "";
+      let primeiraPerguntaMs: number | null = null;
       try {
         const bruto = await chamarClaudeStream({
           system,
@@ -155,6 +156,7 @@ ${texto}`;
           onTexto: (_p, acumulado) => {
             const parcial = perguntaParcial(acumulado);
             if (parcial && parcial !== ultimaParcial) {
+              if (primeiraPerguntaMs === null) primeiraPerguntaMs = Date.now() - inicio;
               ultimaParcial = parcial;
               controller.enqueue(linha({ tipo: "parcial", proxima_pergunta: parcial }));
             }
@@ -176,6 +178,7 @@ ${texto}`;
           produto: ctx.oferta?.nome ?? "",
           cerebro_versao: ctx.versao,
           request_id: body.requestId ?? "",
+          primeira_pergunta_ms: primeiraPerguntaMs,
         };
         controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia, identidade }));
 
