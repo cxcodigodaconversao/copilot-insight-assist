@@ -823,7 +823,7 @@ function CriteriosQualificacao({ ofertaId }: { ofertaId: string | null }) {
             <div key={c.id} className="space-y-2 rounded-md bg-secondary/40 p-3">
               {ofertaId && (
                 <div className="flex items-center gap-2">
-                  <Etiqueta proprio={c.oferta_id !== null} />
+                  <Etiqueta proprio={c.oferta_id !== null} emUso={!temProprios} />
                   {c.base_id && (
                     <Button
                       type="button"
