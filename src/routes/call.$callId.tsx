@@ -192,7 +192,9 @@ function CallAoVivo() {
       const controller = new AbortController();
       abortRef.current = controller;
       setPensando(true);
-      setPerguntaParcial(perguntas[0]?.pergunta ?? "");
+      setPerguntaParcial(
+        perguntas[Math.min(historico.length, Math.max(0, perguntas.length - 1))]?.pergunta ?? "",
+      );
       try {
         const { data: sessao } = await supabase.auth.getSession();
         const token = sessao.session?.access_token;
@@ -262,7 +264,7 @@ function CallAoVivo() {
         }
       }
     },
-    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, perguntas],
+    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, historico.length, perguntas],
   );
 
   const onFinal = useCallback(
@@ -275,6 +277,9 @@ function CallAoVivo() {
         void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
         return;
       }
+      abortRef.current?.abort();
+      requisicaoRef.current += 1;
+      setPensando(true);
       falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
         .filter(Boolean)
         .join(" ");
