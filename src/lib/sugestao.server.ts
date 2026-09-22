@@ -11,6 +11,64 @@ import {
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 type Saida = { [k: string]: Json };
 
+type EstadoQualificacao = {
+  etapa_atual: string;
+  etapas_concluidas: string[];
+  perguntas_respondidas: string[];
+  criterios_atendidos: string[];
+  respostas_coletadas: Record<string, string>;
+  ultima_orientacao: string;
+  lembrete: string | null;
+  oferta_id?: string;
+  cerebro_versao?: string;
+  turno?: number;
+};
+
+const ETAPAS = [
+  "apresentacao",
+  "motivo",
+  "diagnostico",
+  "dor_implicacao",
+  "interesse",
+  "agendamento",
+  "validacao",
+  "compromisso",
+  "encerramento",
+] as const;
+
+function textoArray(valor: Json | undefined): string[] {
+  if (!Array.isArray(valor)) return [];
+  return valor.filter((item): item is string => typeof item === "string");
+}
+
+function estadoInicial(valor: Json, ofertaId: string, versao: string): EstadoQualificacao {
+  const bruto = valor && typeof valor === "object" && !Array.isArray(valor) ? valor : {};
+  return {
+    etapa_atual: typeof bruto.etapa_atual === "string" ? bruto.etapa_atual : "apresentacao",
+    etapas_concluidas: textoArray(bruto.etapas_concluidas),
+    perguntas_respondidas: textoArray(bruto.perguntas_respondidas),
+    criterios_atendidos: textoArray(bruto.criterios_atendidos),
+    respostas_coletadas:
+      bruto.respostas_coletadas && typeof bruto.respostas_coletadas === "object" && !Array.isArray(bruto.respostas_coletadas)
+        ? (bruto.respostas_coletadas as Record<string, string>)
+        : {},
+    ultima_orientacao: typeof bruto.ultima_orientacao === "string" ? bruto.ultima_orientacao : "",
+    lembrete: typeof bruto.lembrete === "string" ? bruto.lembrete : null,
+    oferta_id: ofertaId,
+    cerebro_versao: versao,
+    turno: typeof bruto.turno === "number" ? bruto.turno : 0,
+  };
+}
+
+function indiceEtapa(etapa: string): number {
+  const indice = ETAPAS.indexOf(etapa as (typeof ETAPAS)[number]);
+  return indice < 0 ? 0 : indice;
+}
+
+function normalizar(texto: string): string {
+  return texto.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\W+/g, " ").trim();
+}
+
 function clienteComToken(token: string) {
   const url = process.env["SUPABASE_URL"];
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
@@ -66,6 +124,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     ofertaId?: string;
     cerebroVersao?: string;
     requestId?: string;
+    turno?: number;
   };
   const callId = body.callId ?? "";
   const texto = (body.texto ?? "").trim();
@@ -87,6 +146,22 @@ export async function responderSugestao(request: Request): Promise<Response> {
   }
   if (call.tipo === "sdr" && !ctx.completoSdr) {
     return new Response("O cérebro SDR deste produto está incompleto.", { status: 409 });
+  }
+  const turno = Number(body.turno ?? 0);
+  if (call.tipo === "sdr" && (!Number.isSafeInteger(turno) || turno <= 0)) {
+    return new Response("Turno inválido", { status: 400 });
+  }
+  let estado = estadoInicial(call.estado_qualificacao, call.oferta_id ?? "", ctx.versao);
+  if (call.tipo === "sdr") {
+    const { data: estadoIniciado, error: erroTurno } = await supabase.rpc("iniciar_turno_copiloto", {
+      _call_id: callId,
+      _turno: turno,
+      _oferta_id: call.oferta_id ?? "",
+      _cerebro_versao: ctx.versao,
+    });
+    if (erroTurno) return new Response("Não foi possível iniciar a análise.", { status: 500 });
+    if (!estadoIniciado) return new Response("Esta fala já foi substituída por uma mais recente.", { status: 409 });
+    estado = estadoInicial(estadoIniciado, call.oferta_id ?? "", ctx.versao);
   }
   const [falaRes, falasRes] = await Promise.all([
     supabase
@@ -122,7 +197,21 @@ export async function responderSugestao(request: Request): Promise<Response> {
     Math.round((Date.now() - new Date(call.iniciada_em).getTime()) / 60000),
   );
 
-  const userMessage = `CONTEXTO DO LEAD
+  const perguntasDisponiveis = ctx.perguntas.map((p) => ({
+    id: p.id,
+    ordem: p.ordem,
+    categoria: p.categoria,
+    pergunta: p.pergunta,
+  }));
+  const userMessage = `ESTADO DA CONVERSA — FONTE DE VERDADE
+${JSON.stringify(estado)}
+
+PERGUNTAS DESTE PRODUTO
+${JSON.stringify(perguntasDisponiveis)}
+
+Nunca repita IDs presentes em perguntas_respondidas. A etapa retornada não pode ser anterior a etapa_atual.
+
+CONTEXTO DO LEAD
 Nome: ${call.nome_lead || "(ainda não cadastrado)"}
 Origem: ${call.origem_lead}
 O que já sabemos: ${call.notas_crm}
@@ -160,7 +249,6 @@ ${texto}`;
             if (parcial && parcial !== ultimaParcial) {
               if (primeiraPerguntaMs === null) primeiraPerguntaMs = Date.now() - inicio;
               ultimaParcial = parcial;
-              controller.enqueue(linha({ tipo: "parcial", proxima_pergunta: parcial }));
             }
           },
         });
@@ -174,6 +262,44 @@ ${texto}`;
             : { acao: "manter" };
         }
 
+        if (call.tipo === "sdr") {
+          const atual = indiceEtapa(estado.etapa_atual);
+          const proposta = typeof resposta.etapa_qualificacao === "string" ? indiceEtapa(resposta.etapa_qualificacao) : atual;
+          const indiceFinal = Math.max(atual, proposta);
+          const etapaFinal = ETAPAS[indiceFinal] ?? ETAPAS[atual] ?? "apresentacao";
+          const idsValidos = new Set(ctx.perguntas.map((p) => p.id));
+          const novasRespondidas = textoArray(resposta.perguntas_respondidas_neste_turno).filter((id) => idsValidos.has(id));
+          const perguntasRespondidas = [...new Set([...estado.perguntas_respondidas, ...novasRespondidas])];
+          let orientacao = typeof resposta.proxima_pergunta === "string" ? resposta.proxima_pergunta.trim() : "";
+          if (normalizar(orientacao) === normalizar(estado.ultima_orientacao)) orientacao = "";
+          const pulou = indiceFinal > atual + 1 ? ETAPAS[atual + 1] : null;
+          const lembreteModelo = typeof resposta.lembrete_etapa_pulada === "string" ? resposta.lembrete_etapa_pulada : null;
+          const lembrete = pulou ? `Você pulou a etapa de ${pulou.replaceAll("_", " ")}.` : lembreteModelo;
+          const concluidas = ETAPAS.slice(0, indiceFinal).filter((item) => !estado.etapas_concluidas.includes(item));
+          estado = {
+            ...estado,
+            etapa_atual: etapaFinal,
+            etapas_concluidas: [...new Set([...estado.etapas_concluidas, ...concluidas])],
+            perguntas_respondidas: perguntasRespondidas,
+            ultima_orientacao: orientacao || estado.ultima_orientacao,
+            lembrete,
+            turno,
+          };
+          resposta = {
+            ...resposta,
+            acao: orientacao ? resposta.acao ?? "orientar" : "manter",
+            etapa_qualificacao: etapaFinal,
+            proxima_pergunta: orientacao,
+            alerta: lembrete,
+          };
+          const { data: concluido } = await supabase.rpc("concluir_turno_copiloto", {
+            _call_id: callId,
+            _turno: turno,
+            _estado: estado as never,
+          });
+          if (!concluido || request.signal.aborted) return;
+        }
+
         const latencia = Date.now() - inicio;
         const identidade = {
           oferta_id: call.oferta_id,
@@ -182,15 +308,16 @@ ${texto}`;
           request_id: body.requestId ?? "",
           primeira_pergunta_ms: primeiraPerguntaMs,
         };
-        controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia, identidade }));
-
-        await supabase.from("sugestoes").insert({
+        const { error: erroSugestao } = await supabase.from("sugestoes").insert({
           call_id: callId,
           fala_id: falaRes.data?.id ?? null,
           resposta: { ...resposta, _cerebro: identidade } as never,
           latencia_ms: latencia,
         });
+        if (erroSugestao || request.signal.aborted) return;
+        controller.enqueue(linha({ tipo: "final", resposta, latencia_ms: latencia, identidade }));
       } catch (e) {
+        if (request.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
         console.error("[copiloto] falha ao gerar sugestão", e);
         controller.enqueue(
           linha({ tipo: "erro", mensagem: "Não foi possível gerar a sugestão agora." }),

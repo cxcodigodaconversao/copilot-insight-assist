@@ -60,6 +60,7 @@ type Sugestao = {
   proxima_pergunta?: string;
   porque?: string;
   alerta?: string | null;
+  lembrete_etapa_pulada?: string | null;
 };
 
 type Linha = { id: string; falante: Falante; texto: string; parcial?: boolean };
@@ -194,9 +195,7 @@ function CallAoVivo() {
       const controller = new AbortController();
       abortRef.current = controller;
       setPensando(true);
-      setPerguntaParcial(
-        perguntas[Math.min(historico.length, Math.max(0, perguntas.length - 1))]?.pergunta ?? "",
-      );
+      setPerguntaParcial("");
       try {
         const { data: sessao } = await supabase.auth.getSession();
         const token = sessao.session?.access_token;
@@ -210,6 +209,7 @@ function CallAoVivo() {
             ofertaId,
             cerebroVersao: versao,
             requestId,
+            turno: Date.now(),
           }),
           signal: controller.signal,
         });
@@ -237,16 +237,14 @@ function CallAoVivo() {
               mensagem?: string;
               identidade?: IdentidadeCerebro;
             };
-            if (evento.tipo === "parcial" && evento.proxima_pergunta) {
-              setPerguntaParcial(evento.proxima_pergunta);
-            } else if (evento.tipo === "final") {
+            if (evento.tipo === "final") {
               const identidadeOk =
                 evento.identidade?.oferta_id === ofertaId &&
                 evento.identidade?.cerebro_versao === versao &&
                 evento.identidade?.request_id === requestId;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
-              if (resposta?.acao && resposta.acao !== "manter") {
+              if (resposta?.proxima_pergunta) {
                 setSugestao(resposta);
                 setHistorico((h) => [resposta, ...h]);
               }
@@ -266,7 +264,7 @@ function CallAoVivo() {
         }
       }
     },
-    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, historico.length, perguntas],
+    [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr],
   );
 
   const onFinal = useCallback(
@@ -279,12 +277,8 @@ function CallAoVivo() {
         void chamarFala({ data: { callId, falante: "vendedor", texto } }).catch(() => {});
         return;
       }
-      abortRef.current?.abort();
-      requisicaoRef.current += 1;
       setPensando(true);
-      setPerguntaParcial(
-        perguntas[Math.min(historico.length, Math.max(0, perguntas.length - 1))]?.pergunta ?? "",
-      );
+      setPerguntaParcial("");
       falaClientePendenteRef.current = [falaClientePendenteRef.current, texto]
         .filter(Boolean)
         .join(" ");
@@ -292,7 +286,10 @@ function CallAoVivo() {
       debounceClienteRef.current = setTimeout(() => {
         const falaAgrupada = falaClientePendenteRef.current.trim();
         falaClientePendenteRef.current = "";
-        if (falaAgrupada) void analisarFalaCliente(falaAgrupada);
+        if (falaAgrupada) {
+          abortRef.current?.abort();
+          void analisarFalaCliente(falaAgrupada);
+        }
       }, 900);
     },
     [analisarFalaCliente, callId, chamarFala],
@@ -367,6 +364,10 @@ function CallAoVivo() {
 
   async function encerrar() {
     setEncerrando(true);
+    if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
+    falaClientePendenteRef.current = "";
+    requisicaoRef.current += 1;
+    abortRef.current?.abort();
     transcricao.parar();
     try {
       await chamarResumo({ data: { callId } });
@@ -412,7 +413,20 @@ function CallAoVivo() {
             <CircleHelp className="size-4" /> Como funciona
           </Button>
           {transcricao.ativo && (
-            <Button variant="secondary" onClick={transcricao.alternarPausa}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!transcricao.emPausa) {
+                  if (debounceClienteRef.current) clearTimeout(debounceClienteRef.current);
+                  falaClientePendenteRef.current = "";
+                  requisicaoRef.current += 1;
+                  abortRef.current?.abort();
+                  setPensando(false);
+                  setPerguntaParcial("");
+                }
+                transcricao.alternarPausa();
+              }}
+            >
               {transcricao.emPausa ? <Mic className="size-4" /> : <MicOff className="size-4" />}
               {transcricao.emPausa ? "Retomar gravação" : "Pausar gravação"}
             </Button>
@@ -637,22 +651,13 @@ function CallAoVivo() {
             </p>
           )}
 
-          {!sugestao && perguntaParcial && (
-            <div className="flex flex-1 flex-col">
-              <p className="text-base text-muted-foreground">Sugestão chegando…</p>
-              <p className="mt-6 font-display text-3xl leading-snug text-primary">
-                {perguntaParcial}
-              </p>
-            </div>
-          )}
-
           {sugestao && (
             <div className="flex flex-1 flex-col">
               <p className="text-base text-muted-foreground">
-                {pensando && perguntaParcial ? "Sugestão chegando…" : sugestao.leitura}
+                {pensando ? "Analisando a nova fala…" : sugestao.leitura}
               </p>
               <p className="mt-6 font-display text-3xl leading-snug text-primary">
-                {pensando && perguntaParcial ? perguntaParcial : sugestao.proxima_pergunta}
+                {sugestao.proxima_pergunta}
               </p>
               <p className="mt-4 text-sm text-muted-foreground">{sugestao.porque}</p>
               <div className="mt-auto flex flex-wrap gap-2 pt-6">
