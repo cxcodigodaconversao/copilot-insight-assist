@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ehEcoDoCliente } from "@/lib/fluxo-sdr";
 
 export type Falante = "cliente" | "vendedor";
 
@@ -7,7 +8,7 @@ export type MotivoFalha = "sem-suporte" | "mic-negado" | "sem-audio-da-aba" | "c
 type Opcoes = {
   idioma: string;
   onParcial: (falante: Falante, texto: string) => void;
-  onFinal: (falante: Falante, texto: string) => void;
+  onFinal: (falante: Falante, texto: string, fimDaFala: boolean) => void;
   onErro: (mensagem: string) => void;
 };
 
