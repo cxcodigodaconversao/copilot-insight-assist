@@ -23,8 +23,6 @@ export type CerebroContexto = {
   config: Record<string, string>;
 };
 
-import { resolverPorProduto, temConteudoProprio } from "./qualificacao";
-
 // Cache curto por produto: durante uma ligação o cérebro não muda,
 // e montá-lo custa 7 consultas ao banco a cada fala do cliente.
 const cache = new Map<string, { em: number; ctx: CerebroContexto }>();
