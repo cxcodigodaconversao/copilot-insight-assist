@@ -22,17 +22,7 @@ export type CerebroContexto = {
   config: Record<string, string>;
 };
 
-type LinhaHeranca = { id: string; oferta_id: string | null; oculto: boolean; base_id: string | null };
-
-// Mescla itens gerais (oferta_id null) com os itens exclusivos do produto.
-// Um item do produto com base_id substitui o item geral correspondente;
-// com oculto = true, apenas remove o item geral daquele produto.
-function mesclarPorProduto<T extends LinhaHeranca>(linhas: T[], ofertaId: string | null): T[] {
-  const doProduto = ofertaId ? linhas.filter((l) => l.oferta_id === ofertaId) : [];
-  const substituidos = new Set(doProduto.map((l) => l.base_id).filter(Boolean) as string[]);
-  const globais = linhas.filter((l) => l.oferta_id === null && !substituidos.has(l.id));
-  return [...globais, ...doProduto.filter((l) => !l.oculto)];
-}
+import { resolverPorProduto, temConteudoProprio } from "./qualificacao";
 
 // Cache curto por produto: durante uma ligação o cérebro não muda,
 // e montá-lo custa 7 consultas ao banco a cada fala do cliente.
