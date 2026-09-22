@@ -104,6 +104,34 @@ function clienteComToken(token: string) {
   });
 }
 
+// Cache curto de sessão: a mesma ligação dispara várias análises por minuto
+// e a sessão não muda nesse intervalo. (O cérebro já tem cache em cerebro.server.ts.)
+const claimsCache = new Map<string, { sub: string; ate: number }>();
+const TTL_CLAIMS_MS = 30_000;
+
+/** Extrai o que já foi gerado do campo "fala" do JSON parcial, para streaming na tela. */
+function falaParcial(acumulado: string): string {
+  const chave = acumulado.indexOf('"fala"');
+  if (chave < 0) return "";
+  const abre = acumulado.indexOf('"', chave + 6);
+  if (abre < 0) return "";
+  let saida = "";
+  for (let j = abre + 1; j < acumulado.length; j++) {
+    const c = acumulado[j];
+    if (c === "\\") {
+      const proximo = acumulado[j + 1];
+      if (proximo === undefined) break;
+      if (proximo === "n") saida += " ";
+      else if (proximo === '"' || proximo === "\\" || proximo === "/") saida += proximo;
+      j++;
+      continue;
+    }
+    if (c === '"') break;
+    saida += c;
+  }
+  return saida;
+}
+
 const SYSTEM_COPILOTO_SDR = `Você é o copiloto de um vendedor (SDR) durante uma ligação ao vivo. Você ouve a conversa e escreve a PRÓXIMA FALA que o vendedor vai ler em voz alta, agora, para o lead.
 
 Pense como o melhor vendedor consultivo do Brasil: interessado de verdade na pessoa, leve, caloroso, curioso, que escuta mais do que fala e conduz sem parecer que está conduzindo. A conversa é um bate-papo, não um interrogatório.
@@ -146,8 +174,14 @@ export async function responderSugestao(request: Request): Promise<Response> {
   if (token.split(".").length !== 3) return new Response("Unauthorized", { status: 401 });
 
   const supabase = clienteComToken(token);
-  const { data: claims, error: erroClaims } = await supabase.auth.getClaims(token);
-  if (erroClaims || !claims?.claims?.sub) return new Response("Unauthorized", { status: 401 });
+  const claimsEmCache = claimsCache.get(token);
+  if (claimsEmCache && claimsEmCache.ate > Date.now()) {
+    // sessão revalidada há poucos segundos: segue direto
+  } else {
+    const { data: claims, error: erroClaims } = await supabase.auth.getClaims(token);
+    if (erroClaims || !claims?.claims?.sub) return new Response("Unauthorized", { status: 401 });
+    claimsCache.set(token, { sub: claims.claims.sub, ate: Date.now() + TTL_CLAIMS_MS });
+  }
 
   const body = (await request.json()) as {
     callId?: string;
@@ -326,6 +360,9 @@ ${texto}`;
         controller.enqueue(linha(evento));
       };
       try {
+        // Streaming real: cada pedaço do campo "fala" vai para a tela assim que é gerado,
+        // então o SDR começa a ler em ~1 s em vez de esperar a resposta inteira.
+        let ultimaParcialEnviada = 0;
         const chamada = chamarClaudeStream({
           system,
           model,
@@ -333,7 +370,16 @@ ${texto}`;
           ...(call.tipo === "sdr" ? { temperatura: 0.6 } : {}),
           messages: [{ role: "user", content: userMessage }],
           signal: request.signal,
-          onTexto: () => {},
+          onTexto: (_pedaco, acumulado) => {
+            if (call.tipo !== "sdr") return;
+            // Quando a IA decide manter a sugestão atual, não há texto novo para digitar.
+            if (acumulado.startsWith('{"manter_atual": true') || acumulado.startsWith('{ "manter_atual": true')) return;
+            const parcial = falaParcial(acumulado);
+            if (parcial.length - ultimaParcialEnviada >= 6) {
+              ultimaParcialEnviada = parcial.length;
+              enviar({ tipo: "parcial", fala: parcial });
+            }
+          },
         });
 
         // Rede de segurança: se passar de 2,5 s, mantemos o que já está na tela

@@ -293,12 +293,22 @@ function CallAoVivo() {
             if (!l.trim() || numero !== requisicaoRef.current) continue;
             const evento = JSON.parse(l) as {
               tipo: string;
+              fala?: string;
               proxima_pergunta?: string;
               resposta?: Sugestao;
               mensagem?: string;
               identidade?: IdentidadeCerebro;
             };
-            if (evento.tipo === "final") {
+            if (evento.tipo === "parcial") {
+              // Digitação ao vivo: só atualiza a tela se o vendedor não estiver falando agora.
+              if (
+                typeof evento.fala === "string" &&
+                evento.fala.trim() &&
+                falandoAteRef.current <= Date.now()
+              ) {
+                setPerguntaParcial(evento.fala);
+              }
+            } else if (evento.tipo === "final") {
               const identidadeOk =
                 evento.identidade?.oferta_id === ofertaId &&
                 evento.identidade?.cerebro_versao === versao &&
@@ -306,7 +316,10 @@ function CallAoVivo() {
                 evento.identidade?.protocolo === PROTOCOLO_COPILOTO;
               if (!identidadeOk) continue;
               const resposta = evento.resposta;
-              if (resposta) aplicarSugestao(resposta);
+              if (resposta) {
+                setPerguntaParcial("");
+                aplicarSugestao(resposta);
+              }
             } else if (evento.tipo === "erro") {
               toast.error(evento.mensagem ?? "Falha ao gerar a sugestão.");
             }
@@ -733,6 +746,13 @@ function CallAoVivo() {
             </p>
           )}
 
+          {!sugestao && perguntaParcial && (
+            <p className="mt-6 font-display text-3xl leading-snug text-primary">
+              {perguntaParcial}
+              <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-primary align-middle" />
+            </p>
+          )}
+
           {sugestao && (
             <div className="flex flex-1 flex-col">
               {(leadFalando || pensando) && (
@@ -741,10 +761,13 @@ function CallAoVivo() {
                 </p>
               )}
               <p
-                key={sugestao.fala ?? sugestao.proxima_pergunta}
+                key={perguntaParcial ? "digitando" : (sugestao.fala ?? sugestao.proxima_pergunta)}
                 className="mt-6 animate-in fade-in font-display text-3xl leading-snug text-primary duration-300"
               >
-                {sugestao.fala ?? sugestao.proxima_pergunta}
+                {perguntaParcial || (sugestao.fala ?? sugestao.proxima_pergunta)}
+                {perguntaParcial && (
+                  <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-primary align-middle" />
+                )}
               </p>
               {sugestaoAnterior && (
                 <p className="mt-4 text-sm text-muted-foreground/70">Antes: {sugestaoAnterior}</p>
