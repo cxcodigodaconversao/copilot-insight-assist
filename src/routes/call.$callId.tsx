@@ -339,6 +339,8 @@ function CallAoVivo() {
     [callId, cerebroSdr?.ofertaId, cerebroSdr?.versao, ehSdr, aplicarSugestao],
   );
 
+  const pausaMs = Math.min(3000, Math.max(200, Number(config?.["pausa_fim_fala_ms"] ?? 800) || 800));
+
   const onFinal = useCallback(
     (falante: Falante, texto: string, fimDaFala: boolean) => {
       setLinhas((prev) => [
@@ -369,14 +371,15 @@ function CallAoVivo() {
             void analisarFalaCliente(falaAgrupada);
           }
         },
-        fimDaFala ? 120 : 900,
+        fimDaFala ? 120 : pausaMs + 300,
       );
     },
-    [analisarFalaCliente, callId, chamarFala],
+    [analisarFalaCliente, callId, chamarFala, pausaMs],
   );
 
   const transcricao = useTranscricao({
     idioma: config?.["idioma"] ?? "pt-BR",
+    pausaMs,
     onParcial,
     onFinal,
     onErro: (m) => toast.error(m),
