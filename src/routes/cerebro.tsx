@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ArquivosCerebro } from "@/components/ArquivosCerebro";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Qualificacao } from "@/components/Cadastros";
 import { testarCerebro } from "@/lib/copiloto.functions";
@@ -180,6 +181,7 @@ function Cerebro() {
           <TabsTrigger value="qualificacao">Qualificação</TabsTrigger>
           {geral && <TabsTrigger value="disc">Perfis DISC</TabsTrigger>}
           {geral && <TabsTrigger value="config">Configurações</TabsTrigger>}
+          <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
           <TabsTrigger value="teste">Testar o cérebro</TabsTrigger>
         </TabsList>
         {!geral && (
@@ -218,6 +220,9 @@ function Cerebro() {
             </fieldset>
           </TabsContent>
         )}
+        <TabsContent value="arquivos">
+          <ArquivosCerebro ofertaId={ofertaId} ehAdm={ehAdm} />
+        </TabsContent>
         <TabsContent value="teste">
           <Teste ofertaIdFixa={ofertaId} />
         </TabsContent>

@@ -298,6 +298,50 @@ export type Database = {
           },
         ]
       }
+      documentos_cerebro: {
+        Row: {
+          created_at: string
+          erro: string | null
+          id: string
+          nome: string
+          oferta_id: string | null
+          status: string
+          tamanho: number
+          texto: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          erro?: string | null
+          id?: string
+          nome: string
+          oferta_id?: string | null
+          status?: string
+          tamanho?: number
+          texto?: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          erro?: string | null
+          id?: string
+          nome?: string
+          oferta_id?: string | null
+          status?: string
+          tamanho?: number
+          texto?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_cerebro_oferta_id_fkey"
+            columns: ["oferta_id"]
+            isOneToOne: false
+            referencedRelation: "ofertas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       falas: {
         Row: {
           call_id: string

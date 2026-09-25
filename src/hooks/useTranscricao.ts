@@ -7,6 +7,8 @@ export type MotivoFalha = "sem-suporte" | "mic-negado" | "sem-audio-da-aba" | "c
 
 type Opcoes = {
   idioma: string;
+  /** Silêncio (ms) para considerar que a pessoa terminou de falar. */
+  pausaMs?: number;
   onParcial: (falante: Falante, texto: string) => void;
   onFinal: (falante: Falante, texto: string, fimDaFala: boolean) => void;
   onErro: (mensagem: string) => void;
@@ -39,7 +41,7 @@ export function suportaCapturaDeAba() {
   );
 }
 
-export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
+export function useTranscricao({ idioma, pausaMs = 800, onParcial, onFinal, onErro }: Opcoes) {
   const canais = useRef<Canal[]>([]);
   const falasDoCliente = useRef<Array<{ texto: string; em: number }>>([]);
   const pausado = useRef(false);
@@ -65,7 +67,7 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
       url.searchParams.set("language", idioma || "pt-BR");
       url.searchParams.set("interim_results", "true");
       url.searchParams.set("smart_format", "true");
-      url.searchParams.set("endpointing", "250");
+      url.searchParams.set("endpointing", String(Math.round(pausaMs)));
       url.searchParams.set("encoding", "linear16");
       url.searchParams.set("sample_rate", "16000");
       url.searchParams.set("channels", "1");
@@ -118,7 +120,7 @@ export function useTranscricao({ idioma, onParcial, onFinal, onErro }: Opcoes) {
 
       canais.current.push({ ws, ctx, node, source, stream });
     },
-    [idioma, onFinal, onParcial, onErro],
+    [idioma, pausaMs, onFinal, onParcial, onErro],
   );
 
   const parar = useCallback(() => {

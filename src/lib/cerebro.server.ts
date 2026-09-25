@@ -11,6 +11,8 @@ export type PerfilDisc = Database["public"]["Tables"]["perfis_disc"]["Row"];
 export type PerguntaQualificacao = Database["public"]["Tables"]["perguntas_qualificacao"]["Row"];
 export type CriterioQualificacao = Database["public"]["Tables"]["criterios_qualificacao"]["Row"];
 
+export type DocumentoCerebro = { id: string; nome: string; texto: string };
+
 export type TipoCall = "closer" | "sdr";
 
 export type CerebroContexto = {
@@ -21,6 +23,7 @@ export type CerebroContexto = {
   perfis: PerfilDisc[];
   perguntas: PerguntaQualificacao[];
   criterios: CriterioQualificacao[];
+  documentos: DocumentoCerebro[];
   regras: Record<string, string>;
   config: Record<string, string>;
   completoSdr: boolean;
@@ -65,7 +68,7 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
     consulta: T,
   ) => (ofertaId ? consulta.eq("oferta_id", ofertaId) : consulta.is("oferta_id", null));
 
-  const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes] =
+  const [ofertaRes, objecoesRes, perfisRes, regrasRes, configRes, perguntasRes, criteriosRes, docsRes] =
     await Promise.all([
       ofertaId
         ? supabase.from("ofertas").select("*").eq("id", ofertaId).maybeSingle()
@@ -82,6 +85,9 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
       filtrarOferta(
         supabase.from("criterios_qualificacao").select("*").eq("ativo", true).eq("oculto", false),
       ).order("peso", { ascending: false }),
+      filtrarOferta(
+        supabase.from("documentos_cerebro").select("id, nome, texto").eq("status", "lido"),
+      ).order("created_at", { ascending: true }),
     ]);
 
   // Nunca misture regras entre produtos. O padrão geral só existe no cérebro geral.
@@ -98,6 +104,7 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
     regrasRes.data,
     perguntasRes.data,
     criteriosRes.data,
+    (docsRes.data ?? []).map((d) => [d.id, d.texto.length]),
   ]);
 
   return {
@@ -108,6 +115,7 @@ async function montarCerebro(supabase: DB, ofertaId: string | null): Promise<Cer
     perfis: perfisRes.data ?? [],
     perguntas: perguntasRes.data ?? [],
     criterios: criteriosRes.data ?? [],
+    documentos: docsRes.data ?? [],
     regras,
     config,
     completoSdr:
@@ -290,7 +298,11 @@ ${ctx.regras["instrucoes_livres"] ?? ""}
 TOM E CONDUTA DESTE PRODUTO
 ${ctx.regras["persona_sdr"] ?? ""}
 ${ctx.regras["regras_conduta_sdr"] ?? ""}`;
-  return texto.slice(0, limite);
+  const docs = ctx.documentos
+    .map((d) => `--- ${d.nome} ---\n${d.texto}`)
+    .join("\n\n")
+    .slice(0, 12000);
+  return texto.slice(0, limite) + (docs ? `\n\nMATERIAL DE REFERÊNCIA (arquivos enviados)\n${docs}` : "");
 }
 
 export function extrairJson(texto: string): unknown {

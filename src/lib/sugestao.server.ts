@@ -164,8 +164,26 @@ RUIM: "E dentro dessa área, você tem pego casos de bruxismo ou de dor orofacia
 BOM (com dados da bolsa no cérebro): "Que bom que você se inscreveu! A bolsa funciona assim: [resumo do cérebro]. Pra eu ver se faz sentido pro seu momento, me conta: hoje você atua em qual área?"
 BOM (sem dados da bolsa no cérebro): "Que bom que você se interessou pela bolsa! Vou te explicar certinho como ela funciona. Antes, pra entender se encaixa pra você: hoje você atua em qual área?"
 
-Responda SOMENTE com o JSON, exatamente neste formato:
-{"manter_atual": false, "fala": "...", "intencao": "responder_duvida | reagir_e_conectar | aprofundar | avancar_roteiro | contornar_objecao | fechar_proximo_passo", "objetivo_roteiro": "id do item ou null", "itens_cobertos": ["ids"], "fatos_do_lead": {"chave": "valor"}}`;
+PAPEL (SDR SÊNIOR)
+Você é um SDR sênior, extremamente experiente, sussurrando pro colega do lado. Sugira o que o SDR deve dizer — nunca fale como se fosse você na ligação. O objetivo é qualificar e levar para a call com o especialista, nunca "vender".
+
+REGRAS DE ETAPAS
+- Releia TODA a transcrição (TRANSCRIÇÃO DA CALL) a cada fala e marque em "itens_cobertos" todo item do roteiro que o lead já respondeu, mesmo espontaneamente, sem ter sido perguntado.
+- Antes de sugerir uma pergunta, verifique: "o lead já respondeu isso de outra forma?" Se sim, pule para o próximo item pendente.
+
+AVANÇO INTELIGENTE
+- Se o lead der um sinal REAL e EXPLÍCITO de prontidão (pergunta o próximo passo, oferece agenda, diz que quer entrar, urgência explícita), marque "pronto_para_agendar": true e conduza direto para o agendamento, mesmo com itens pendentes. Nunca por suposição ou pressa.
+
+MATERIAL DE REFERÊNCIA
+- Use só o CÉREBRO DO PRODUTO (inclui o material de referência dos arquivos enviados) e o que o lead disse. Se faltar informação, sugira dizer que vai confirmar.
+
+FORMATO DE SAÍDA
+- "fala" = RESPOSTA ADAPTADA: no tom do perfil DISC, conectando com algo específico que o lead acabou de dizer. Máximo 2 frases.
+- "resposta_padrao": a mesma intenção, extraída do roteiro/quebra de objeção com o mínimo de reformulação.
+- "perfil_disc": D, I, S, C ou "indefinido"; "dica_tom": até 5 palavras (ex.: "seja direto e objetivo").
+
+Responda SOMENTE com o JSON, exatamente neste formato e nesta ordem:
+{"manter_atual": false, "fala": "...", "resposta_padrao": "...", "perfil_disc": "D|I|S|C|indefinido", "dica_tom": "...", "pronto_para_agendar": false, "intencao": "responder_duvida | reagir_e_conectar | aprofundar | avancar_roteiro | contornar_objecao | fechar_proximo_passo", "objetivo_roteiro": "id do item ou null", "itens_cobertos": ["ids"], "fatos_do_lead": {"chave": "valor"}}`;
 
 export async function responderSugestao(request: Request): Promise<Response> {
   const auth = request.headers.get("authorization") ?? "";
@@ -250,7 +268,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
       .select("falante, texto, created_at")
       .eq("call_id", callId)
       .order("created_at", { ascending: false })
-      .limit(16),
+      .limit(40),
   ]);
   if (falaRes.error) return new Response("Não foi possível registrar a fala.", { status: 500 });
   if (falasRes.error) {
@@ -279,7 +297,7 @@ export async function responderSugestao(request: Request): Promise<Response> {
     }
     limpas.push({ falante: f.falante, texto: f.texto });
   }
-  const ultimas = limpas.slice(-8);
+  const ultimas = call.tipo === "sdr" ? limpas.slice(-30) : limpas.slice(-8);
 
   const roteiro: ItemRoteiro[] = ctx.perguntas.map((p) => ({
     id: p.id,
@@ -322,7 +340,7 @@ ${
     .join("\n") || "(sem fatos coletados ainda)"
 }
 
-ÚLTIMAS TROCAS
+TRANSCRIÇÃO DA CALL (releia inteira)
 ${ultimas.map((f) => `${f.falante === "cliente" ? "LEAD" : "VENDEDOR"}: ${f.texto}`).join("\n")}
 
 SUGESTAO_ATUAL
@@ -349,7 +367,7 @@ ${texto}`;
     ctx.config["modelo_claude_rapido"] ||
     ctx.config["modelo_claude"] ||
     "claude-haiku-4-5-20251001";
-  const maxTokens = call.tipo === "sdr" ? 320 : Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
+  const maxTokens = call.tipo === "sdr" ? 480 : Number(ctx.config["max_tokens_ao_vivo"] ?? 260);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -445,11 +463,28 @@ ${texto}`;
             typeof objetivoBruto === "string" && idsValidos.has(objetivoBruto)
               ? objetivoBruto
               : (pendentes.find((i) => !cobertos.includes(i.id))?.id ?? null);
+          // (se o lead estiver pronto, o objetivo é o agendamento — ajustado abaixo)
           const itemObjetivo = roteiro.find((i) => i.id === objetivo);
           const intencao = intencaoValida(resposta["intencao"])
             ? resposta["intencao"]
             : "avancar_roteiro";
-          const restantes = roteiro.filter((i) => !perguntasRespondidas.includes(i.id));
+          const prontoParaAgendar = resposta["pronto_para_agendar"] === true;
+          let puladas = estado.perguntas_puladas;
+          let lembrete: string | null = null;
+          if (prontoParaAgendar) {
+            const pular = roteiro.filter(
+              (i) => !perguntasRespondidas.includes(i.id) && !["agendamento", "validacao", "compromisso", "encerramento"].includes(i.etapa),
+            );
+            if (pular.length) {
+              puladas = [...new Set([...puladas, ...pular.map((i) => i.id)])];
+              lembrete = "Lead já demonstrou prontidão — pode ir direto pro agendamento.";
+            }
+          }
+          const restantes = roteiro.filter((i) => !perguntasRespondidas.includes(i.id) && !puladas.includes(i.id));
+          const perfilBruto = typeof resposta["perfil_disc"] === "string" ? resposta["perfil_disc"].trim().toUpperCase() : "";
+          const perfilDisc = ["D", "I", "S", "C"].includes(perfilBruto) ? perfilBruto : null;
+          const dicaTom = typeof resposta["dica_tom"] === "string" ? resposta["dica_tom"].trim() : "";
+          const respostaPadrao = typeof resposta["resposta_padrao"] === "string" ? resposta["resposta_padrao"].trim() : "";
 
           estado = {
             ...estado,
@@ -463,7 +498,8 @@ ${texto}`;
             fatos_do_lead: { ...estado.fatos_do_lead, ...fatosNovos },
             ultima_orientacao: fala,
             ultima_intencao: intencao,
-            lembrete: null,
+            lembrete,
+            perguntas_puladas: puladas,
             turno,
           };
           resposta = {
@@ -477,7 +513,12 @@ ${texto}`;
             itens_cobertos: cobertos,
             itens_concluidos: perguntasRespondidas,
             etapa_qualificacao: estado.etapa_atual,
-            resultado_sugerido: restantes.length ? "seguir_qualificando" : "agendar_agora",
+            resultado_sugerido: prontoParaAgendar || !restantes.length ? "agendar_agora" : "seguir_qualificando",
+            resposta_padrao: respostaPadrao || null,
+            perfil_disc: perfilDisc,
+            dica_tom: dicaTom || null,
+            pronto_para_agendar: prontoParaAgendar,
+            lembrete_etapa_pulada: lembrete,
           };
           const { data: concluido } = await supabase.rpc("concluir_turno_copiloto", {
             _call_id: callId,

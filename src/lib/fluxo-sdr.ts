@@ -1,4 +1,4 @@
-export const PROTOCOLO_COPILOTO = "sdr-consultivo-v4";
+export const PROTOCOLO_COPILOTO = "sdr-consultivo-v5";
 
 export const ETAPAS_SDR = [
   "apresentacao",
