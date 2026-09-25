@@ -55,7 +55,10 @@ export const Route = createFileRoute("/call/$callId")({
 type Sugestao = {
   acao?: string;
   leitura?: string;
-  perfil_disc?: { tipo?: string; confianca?: number };
+  perfil_disc?: { tipo?: string; confianca?: number } | string | null;
+  dica_tom?: string | null;
+  resposta_padrao?: string | null;
+  pronto_para_agendar?: boolean;
   etapa_spin?: string;
   etapa_qualificacao?: string;
   pontuacao_qualificacao?: number;
@@ -772,6 +775,26 @@ function CallAoVivo() {
                   <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-primary align-middle" />
                 )}
               </p>
+              {call?.tipo === "sdr" && !perguntaParcial && (
+                <div className="mt-4 space-y-2 text-sm">
+                  {typeof sugestao.perfil_disc === "string" && (
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">Perfil {sugestao.perfil_disc}</span>
+                      {sugestao.dica_tom && ` — ${sugestao.dica_tom}`}
+                    </p>
+                  )}
+                  {sugestao.resposta_padrao &&
+                    sugestao.resposta_padrao !== (sugestao.fala ?? "") && (
+                      <p className="rounded-md border border-border bg-muted/40 p-3 text-muted-foreground">
+                        <span className="mr-1 text-xs uppercase tracking-wide">Resposta padrão:</span>
+                        {sugestao.resposta_padrao}
+                      </p>
+                    )}
+                  {sugestao.lembrete_etapa_pulada && (
+                    <p className="font-medium text-primary">{sugestao.lembrete_etapa_pulada}</p>
+                  )}
+                </div>
+              )}
               {sugestaoAnterior && (
                 <p className="mt-4 text-sm text-muted-foreground/70">Antes: {sugestaoAnterior}</p>
               )}
@@ -789,8 +812,8 @@ function CallAoVivo() {
                 ) : (
                   <>
                     <Chip>
-                      DISC {sugestao.perfil_disc?.tipo ?? "—"}
-                      {sugestao.perfil_disc?.confianca != null &&
+                      DISC {typeof sugestao.perfil_disc === "object" ? (sugestao.perfil_disc?.tipo ?? "—") : (sugestao.perfil_disc ?? "—")}
+                      {typeof sugestao.perfil_disc === "object" && sugestao.perfil_disc?.confianca != null &&
                         ` · ${Math.round(sugestao.perfil_disc.confianca * 100)}%`}
                     </Chip>
                     <Chip>SPIN {sugestao.etapa_spin ?? "—"}</Chip>
