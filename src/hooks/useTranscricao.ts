@@ -120,7 +120,7 @@ export function useTranscricao({ idioma, pausaMs = 800, onParcial, onFinal, onEr
 
       canais.current.push({ ws, ctx, node, source, stream });
     },
-    [idioma, onFinal, onParcial, onErro],
+    [idioma, pausaMs, onFinal, onParcial, onErro],
   );
 
   const parar = useCallback(() => {
